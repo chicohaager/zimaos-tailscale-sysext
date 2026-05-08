@@ -4,7 +4,7 @@ Hi zusammen,
 
 ich habe Tailscale als natives `systemd-sysext`-Modul für ZimaOS gepackt. Falls jemand Tailscale bisher per Docker-Container betreibt und sich an den Limitierungen (`--tun=userspace-networking`, kein vollwertiger Subnet-Router, kein sauberer Exit-Node) gestört hat — das hier läuft direkt auf dem Host als regulärer Systemd-Service, mit echtem TUN.
 
-**Repo:** <https://github.com/<DEIN-USER>/zimaos-tailscale-sysext>
+**Repo:** <https://github.com/chicohaager/zimaos-tailscale-sysext>
 
 ## Was ist drin
 
@@ -18,7 +18,7 @@ Layout entspricht 1:1 dem upstream Buildroot-Rezept `package/tailscale/tailscale
 ## Schnell-Install
 
 ```bash
-git clone https://github.com/<DEIN-USER>/zimaos-tailscale-sysext
+git clone https://github.com/chicohaager/zimaos-tailscale-sysext
 cd zimaos-tailscale-sysext
 sudo ./install.sh
 sudo tailscale up

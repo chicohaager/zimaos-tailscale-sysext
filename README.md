@@ -87,8 +87,8 @@ und die ausgegebene Login-URL im Browser öffnen.
 ### Direkt via curl (sobald das Repo öffentlich ist)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/<DEIN-USER>/zimaos-tailscale-sysext/main/install.sh \
-  | sudo REPO_RAW=https://raw.githubusercontent.com/<DEIN-USER>/zimaos-tailscale-sysext/main bash
+curl -fsSL https://raw.githubusercontent.com/chicohaager/zimaos-tailscale-sysext/main/install.sh \
+  | sudo REPO_RAW=https://raw.githubusercontent.com/chicohaager/zimaos-tailscale-sysext/main bash
 ```
 
 ---

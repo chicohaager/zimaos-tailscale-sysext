@@ -19,7 +19,7 @@ set -euo pipefail
 
 [[ "$(id -u)" -eq 0 ]] || { echo "✗ must run as root (use sudo)" >&2; exit 1; }
 
-REPO_RAW="${REPO_RAW:-https://raw.githubusercontent.com/CHANGE-ME/zimaos-tailscale-sysext/main}"
+REPO_RAW="${REPO_RAW:-https://raw.githubusercontent.com/chicohaager/zimaos-tailscale-sysext/main}"
 TAILSCALE_VERSION="${TAILSCALE_VERSION:-}"   # empty → build.sh resolves latest
 ARCH="${ARCH:-amd64}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd || pwd)"

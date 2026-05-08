@@ -4,7 +4,7 @@ ZimaOS (Buildroot-based NAS OS by IceWhaleTech) has a read-only root and no pack
 
 I built a `systemd-sysext` extension that follows the official Buildroot `package/tailscale/tailscale.mk` recipe layout exactly, so it's structurally what Tailscale would look like if shipped as a first-party Buildroot package — but distributed as a runtime SquashFS overlay since ZimaOS source isn't open.
 
-**Repo:** <https://github.com/<DEIN-USER>/zimaos-tailscale-sysext>
+**Repo:** <https://github.com/chicohaager/zimaos-tailscale-sysext>
 
 Verified working on Tailscale 1.96.4 / ZimaOS v1.6.1 / kernel 6.12.25, with `firewallmode="ipt-default"` auto-selected. Sharing here in case the showcase is useful for others on Buildroot-based hosts where neither apt nor a writable rootfs are available.
 

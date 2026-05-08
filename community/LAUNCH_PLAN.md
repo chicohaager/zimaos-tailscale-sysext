@@ -1,6 +1,6 @@
 # Launch-Plan — empfohlene Reihenfolge
 
-Alles unter `posts/` ist drop-in-fertig. **Fülle nur `<DEIN-USER>` und Release-Tag aus, dann Copy & Paste.**
+Alles unter `posts/` ist drop-in-fertig. Username ist bereits auf `chicohaager` gesetzt — fülle nur Release-Tag aus, dann Copy & Paste.
 
 ---
 
@@ -8,16 +8,12 @@ Alles unter `posts/` ist drop-in-fertig. **Fülle nur `<DEIN-USER>` und Release-
 
 ```bash
 cd ~/dev/zimaos-tailscale-sysext
-git init -b main
-git add .
-git commit -m "v1.0.0 — initial release"
 gh repo create zimaos-tailscale-sysext --public --source=. --remote=origin --push
+TAILSCALE_VERSION=1.96.4 ./build.sh   # erzeugt frische tailscale.raw
 gh release create v1.0.0 tailscale.raw \
   --title "v1.0.0 — Tailscale 1.96.4 sysext for ZimaOS" \
   --notes-file community/posts/00-github-release-notes.md
 ```
-
-Danach in `README.md`/`README.en.md`/`install.sh` alle `<DEIN-USER>` / `CHANGE-ME` Platzhalter auf den echten User-/Org-Namen ersetzen und committen.
 
 ⏱ Zeit: ~5 min.
 
