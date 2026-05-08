@@ -1,3 +1,8 @@
+<!-- German variant of the community.zimaspace.com forum post.
+     Use this if you want to address the German-speaking subset of the
+     ZimaOS community (or post in a German-language section).
+     Default English version: 02-zimaspace-forum-en.md -->
+
 # [Module] Tailscale nativ auf ZimaOS — als systemd-sysext
 
 Hi zusammen,
