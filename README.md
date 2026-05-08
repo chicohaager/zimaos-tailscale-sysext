@@ -1,109 +1,98 @@
 # zimaos-tailscale-sysext
 
-**Tailscale als natives systemd-sysext-Modul für ZimaOS.** Kein Docker-Container — der Tailscale-Daemon läuft direkt auf dem Host mit echtem TUN, vollwertigem Subnet-Router/Exit-Node-Support und Boot-Persistenz.
-
-> 🇬🇧 English version: [README.en.md](README.en.md)
+**Tailscale as a native `systemd-sysext` extension for ZimaOS.** No Docker container — the Tailscale daemon runs directly on the host with real TUN, full subnet-router/exit-node support, and boot persistence.
 
 ---
 
-## Was das hier ist (und warum)
+## What this is (and why)
 
-ZimaOS basiert auf Buildroot und hat einen **read-only Root-Filesystem**. Es gibt keinen Paketmanager (kein `apt`, kein `yum`), und der ZimaOS-Sourcecode ist nicht öffentlich — ein klassisches Buildroot-Paket einzureichen ist also kein gangbarer Weg.
+ZimaOS is a Buildroot-based NAS OS with a **read-only root filesystem** and no package manager. The ZimaOS source isn't public, so submitting a Buildroot package upstream isn't really an option.
 
-Der saubere Mechanismus für native Erweiterungen auf ZimaOS heißt **`systemd-sysext`**: ein SquashFS-Overlay nach `/usr` zur Laufzeit, ohne den read-only Root anzufassen. ZimaOS nutzt das selbst (z. B. `cron.raw`, `casadrop.raw`, `xpkg.raw`), und Drittanbieter-Module sind erlaubt.
+The clean native-extension mechanism on ZimaOS is **`systemd-sysext`** — a SquashFS overlay onto `/usr` at runtime. ZimaOS itself uses it (e.g. `cron.raw`, `casadrop.raw`, `xpkg.raw`), and third-party modules are allowed.
 
-Dieses Repo packt Tailscale als ebensolches Modul. Das Install-Layout entspricht **1:1 dem offiziellen Buildroot-Rezept** [`package/tailscale/tailscale.mk`](https://github.com/buildroot/buildroot/blob/master/package/tailscale/tailscale.mk):
+This repo packages Tailscale as such an extension. The install layout matches the **upstream Buildroot recipe** [`package/tailscale/tailscale.mk`](https://github.com/buildroot/buildroot/blob/master/package/tailscale/tailscale.mk) one-to-one:
 
-| | Buildroot `tailscale.mk` | dieser Sysext |
+| | Buildroot `tailscale.mk` | this sysext |
 |---|---|---|
-| `/usr/bin/tailscaled` | Binary | Binary (aus offiziellem Static-Tarball) |
-| `/usr/sbin/tailscaled` | Symlink → `../bin/tailscaled` | identisch |
+| `/usr/bin/tailscaled` | binary | binary (from upstream static tarball) |
+| `/usr/sbin/tailscaled` | symlink → `../bin/tailscaled` | identical |
 | `/usr/bin/tailscale` | CLI | CLI |
-| `/usr/lib/systemd/system/tailscaled.service` | Unit | Unit (angepasst, s. u.) |
-| State | `/var/lib/tailscale` (StateDirectory) | `/DATA/AppData/tailscale/` (ZimaOS-Anpassung) |
-| Kompilation | Cross-Compile mit Buildroot-Go | Upstream-Static-Binary |
+| `/usr/lib/systemd/system/tailscaled.service` | unit | unit (adapted, see below) |
+| state | `/var/lib/tailscale` (StateDirectory) | `/DATA/AppData/tailscale/` (ZimaOS-specific) |
+| build | cross-compile via Buildroot Go | upstream static binary |
 
-Verifiziert auf **ZimaOS v1.6.1, Kernel 6.12.25, ZimaCube** (2026-05-08).
+Verified on **ZimaOS v1.6.1, kernel 6.12.25, ZimaCube** (2026-05-08).
 
 ---
 
-## Voraussetzungen
+## Requirements
 
-- ZimaOS x86_64 (für ARM-Boards: `ARCH=arm64` setzen)
-- Kernel hat `TUN`, `NF_TABLES`, `NF_NAT`, `NF_CONNTRACK`, `NETFILTER` (auf ZimaOS v1.6.1 alle vorhanden)
-- Schreibzugriff auf `/var/lib/extensions/` (sudo)
-- Internetzugriff zum Laden des Tailscale-Tarballs
+- ZimaOS x86_64 (for ARM boards set `ARCH=arm64`)
+- Kernel has `TUN`, `NF_TABLES`, `NF_NAT`, `NF_CONNTRACK`, `NETFILTER` (all present on v1.6.1)
+- root / sudo access for `/var/lib/extensions/`
+- internet access for the Tailscale tarball
 
-> ### ⚠ Bekannte IPv6-Limitierung (ZimaOS-Kernel-Sache, nicht dieses Modul)
+> ### ⚠ Known IPv6 limitation (ZimaOS kernel issue, not this module)
 >
-> ZimaOS' Kernel-Image hat einige für vollständige IPv6-Tailscale-Funktion nötige `CONFIG_*`-Flags **nicht** aktiviert. **Sysext kann das nicht fixen** — die Flags müssen im Kernel-Image gesetzt sein, bevor der Kernel kompiliert wurde.
+> ZimaOS's kernel image has a handful of `CONFIG_*` flags disabled that Tailscale needs for full IPv6 functionality. **Sysext cannot fix this** — these flags have to be set in the kernel before it is compiled.
 >
-> **Konkrete Auswirkung:** Tailscale deaktiviert IPv6-Tunneling automatisch und loggt:
+> **Concrete effect:** Tailscale auto-disables tunneled IPv6 and logs:
 >
 > ```
 > router: disabling tunneled IPv6 due to system IPv6 config:
 >   kernel doesn't support IPv6 policy routing
 > ```
 >
-> Mesh-VPN über IPv4, IPv4-Subnet-Router und IPv4-Exit-Node funktionieren **uneingeschränkt**. Nur IPv6-Verbindungen über das Tailnet sind aus.
+> Mesh VPN over IPv4, IPv4 subnet-router and IPv4 exit-node work **without any restriction**. Only IPv6 connectivity inside the tailnet is off.
 >
-> **Audit auf ZimaOS v1.6.1 / Kernel 6.12.25:**
+> **Audit on ZimaOS v1.6.1 / kernel 6.12.25:**
 >
-> | Config | Status | Wirkung |
+> | Config | Status | Effect when missing |
 > |---|---|---|
-> | `CONFIG_IPV6_MULTIPLE_TABLES` | ❌ not set | 🔴 IPv6-Tunneling komplett deaktiviert |
-> | `CONFIG_IPV6_SUBTREES` | ❌ not present | 🟡 keine source-prefix-Routes |
-> | `CONFIG_NETFILTER_XT_TARGET_MARK` | ❌ not set | 🟡 kein iptables `-j MARK` |
-> | `CONFIG_IP6_NF_TARGET_MASQUERADE` | ❌ not set | 🟡 kein IPv6-Subnet-Router-Masquerading |
-> | `CONFIG_IP_MULTIPLE_TABLES`, `CONFIG_NETFILTER_XT_MARK`, `CONFIG_NETFILTER_XT_MATCH_MARK`, `CONFIG_IP6_NF_IPTABLES/FILTER/MANGLE` | ✅ aktiv | – |
+> | `CONFIG_IPV6_MULTIPLE_TABLES` | ❌ not set | 🔴 IPv6 tunneling disabled entirely |
+> | `CONFIG_IPV6_SUBTREES` | ❌ not present | 🟡 no source-prefix routes |
+> | `CONFIG_NETFILTER_XT_TARGET_MARK` | ❌ not set | 🟡 no iptables `-j MARK` |
+> | `CONFIG_IP6_NF_TARGET_MASQUERADE` | ❌ not set | 🟡 no IPv6 subnet-router masquerading |
+> | `CONFIG_IP_MULTIPLE_TABLES`, `CONFIG_NETFILTER_XT_MARK`, `CONFIG_NETFILTER_XT_MATCH_MARK`, `CONFIG_IP6_NF_IPTABLES/FILTER/MANGLE` | ✅ enabled | – |
 >
-> **Was du tun kannst:** Den Kernel-Config-Request bei IceWhale einreichen — Vorlage in [`mod-store/ICEWHALE_KERNEL_REQUEST.md`](mod-store/ICEWHALE_KERNEL_REQUEST.md). Je mehr 👍 das Issue bekommt, desto höher die Chance.
+> **What you can do:** File the kernel config request with IceWhale — template under [`mod-store/ICEWHALE_KERNEL_REQUEST.md`](mod-store/ICEWHALE_KERNEL_REQUEST.md). The more 👍 the issue gets, the better the odds.
 
 ---
 
-## Schnell-Installation
+## Quick install
 
 ```bash
-# Auf dem ZimaOS-Host als root (oder via sudo):
+# On the ZimaOS host as root (or with sudo):
 sudo ./install.sh
-```
-
-Der Installer
-
-1. prüft den Host (Kernel-Module, Squashfs-Compression, vorhandene Tailscale-Container),
-2. lädt den offiziellen Tailscale-Static-Tarball von `pkgs.tailscale.com`,
-3. baut `tailscale.raw` (gzip-SquashFS, ca. 35 MB),
-4. installiert nach `/var/lib/extensions/`,
-5. aktiviert `tailscaled.service` automatisch.
-
-Anschließend:
-
-```bash
 sudo tailscale up
 ```
 
-und die ausgegebene Login-URL im Browser öffnen.
+The installer
 
-### Direkt via curl (sobald das Repo öffentlich ist)
+1. sanity-checks the host,
+2. downloads the official Tailscale static tarball from `pkgs.tailscale.com`,
+3. builds `tailscale.raw` (gzip-squashfs, ~35 MB),
+4. installs to `/var/lib/extensions/`,
+5. enables `tailscaled.service`.
+
+### Via curl (once the repo is public)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/chicohaager/zimaos-tailscale-sysext/main/install.sh \
-  | sudo REPO_RAW=https://raw.githubusercontent.com/chicohaager/zimaos-tailscale-sysext/main bash
+curl -fsSL https://raw.githubusercontent.com/<YOU>/zimaos-tailscale-sysext/main/install.sh \
+  | sudo REPO_RAW=https://raw.githubusercontent.com/<YOU>/zimaos-tailscale-sysext/main bash
 ```
 
 ---
 
-## Manuelle Installation
+## Manual install
 
 ```bash
-# 1. Bauen (auf einem beliebigen Linux mit mksquashfs, oder direkt auf dem ZimaOS-Host)
-./build.sh                              # neueste stabile Version
-TAILSCALE_VERSION=1.96.4 ./build.sh     # gepinnt
+./build.sh                            # latest stable
+TAILSCALE_VERSION=1.96.4 ./build.sh   # pinned
 
-# 2. Hochladen auf den ZimaOS-Host (falls woanders gebaut)
-scp tailscale.raw Holgi@zimaos:/tmp/
+scp tailscale.raw root@zimaos:/tmp/
 
-# 3. Auf dem ZimaOS-Host als root:
+# on the host:
 sudo cp /tmp/tailscale.raw /var/lib/extensions/
 sudo systemd-sysext refresh
 sudo systemctl daemon-reload
@@ -113,47 +102,34 @@ sudo tailscale up
 
 ---
 
-## Konfiguration
+## Configuration
 
-### Subnet-Router
-
-Damit andere Geräte im Tailnet dein lokales LAN (z. B. `192.168.1.0/24`) erreichen können:
+### Subnet router
 
 ```bash
 sudo tailscale up --advertise-routes=192.168.1.0/24 --accept-routes
 ```
 
-Anschließend in der Tailscale-Admin-Konsole die Routes „approven".
+Approve the routes in the Tailscale admin console.
 
-### Exit-Node
-
-Den ZimaOS-Host als VPN-Exit-Node anbieten:
+### Exit node
 
 ```bash
 sudo tailscale up --advertise-exit-node
 ```
 
-In der Admin-Konsole approven, dann auf einem Client mit `tailscale up --exit-node=<host>` nutzen.
+### Service flags
 
-### Service-Flags überschreiben
-
-Die Unit liest optional `/etc/default/tailscaled`:
+`/etc/default/tailscaled` is read optionally:
 
 ```bash
-# /etc/default/tailscaled
 PORT="41641"
 FLAGS="--advertise-routes=192.168.1.0/24 --accept-routes"
 ```
 
-Nach Änderung:
+Then `sudo systemctl restart tailscaled`.
 
-```bash
-sudo systemctl restart tailscaled
-```
-
-### IP-Forwarding (für Subnet-Router/Exit-Node)
-
-Permanent aktivieren:
+### IP forwarding
 
 ```bash
 echo 'net.ipv4.ip_forward = 1'   | sudo tee -a /etc/sysctl.d/99-tailscale.conf
@@ -163,34 +139,32 @@ sudo sysctl --system
 
 ---
 
-## Persistenz & Update-Verhalten
+## Persistence & updates
 
-- **Sysext-Datei** liegt unter `/var/lib/extensions/tailscale.raw`. Dieser Pfad ist trotz `/var`-Präfix **persistent** — er ist ein Bind-Mount von `/var/lib/casaos_data/.extensions/` auf der ext4-Partition.
-- **Auth-State** liegt unter `/DATA/AppData/tailscale/` (ext4, persistent).
-- **ZimaOS-Update:** Nach einem ZimaOS-Upgrade einfach `install.sh` erneut ausführen (oder die `.raw` neu bauen und kopieren). Der Auth-State bleibt erhalten.
-- **Reboot:** `systemd-sysext.service` lädt die Extension automatisch, `tailscaled.service` startet automatisch.
+- `/var/lib/extensions/tailscale.raw` is persistent despite the `/var` prefix — it's a bind-mount from `/var/lib/casaos_data/.extensions/` on the ext4 partition.
+- Auth state lives under `/DATA/AppData/tailscale/`.
+- After a ZimaOS upgrade just re-run `install.sh` (or rebuild and copy the `.raw`). Auth state survives.
+- After reboot `systemd-sysext.service` re-merges the extension, `tailscaled.service` starts automatically.
 
 ---
 
-## Deinstallation
+## Uninstall
 
 ```bash
-sudo ./uninstall.sh           # Sysext entfernen, State (/DATA/AppData/tailscale/) erhalten
-sudo ./uninstall.sh --purge   # Alles weg inkl. Auth-State
+sudo ./uninstall.sh            # remove sysext, keep state
+sudo ./uninstall.sh --purge    # also wipe /DATA/AppData/tailscale/
 ```
 
 ---
 
 ## Troubleshooting
 
-| Symptom | Ursache | Fix |
+| Symptom | Cause | Fix |
 |---|---|---|
-| `systemd-sysext refresh` → `Invalid argument` | `.raw` mit zstd komprimiert (ZimaOS-Kernel hat kein SQUASHFS_ZSTD) | `mksquashfs ... -comp gzip` (build.sh macht das automatisch) |
-| `tailscaled.service inactive`, aber Tailscale läuft offenbar | Parallel laufender Docker-Container `tailscale/tailscale` | `docker stop tailscale && docker update --restart=no tailscale` |
-| Service startet, aber `BackendState=NeedsLogin` | normal nach Erst-Install | `sudo tailscale up` |
-| Subnet-Router-Routes funktionieren nicht | IP-Forwarding nicht aktiv | siehe „IP-Forwarding" oben |
-| Log: `disabling tunneled IPv6 due to system IPv6 config` | Kernel hat `CONFIG_IPV6_MULTIPLE_TABLES` nicht gesetzt | Kernel-seitig — ZimaOS-Image-Update von IceWhale nötig. Bug-Report: [`mod-store/ICEWHALE_KERNEL_REQUEST.md`](mod-store/ICEWHALE_KERNEL_REQUEST.md) |
-| `tailscale netcheck` zeigt `IPv6: no, but OS has support` | gleiche Ursache wie oben | dito |
+| `systemd-sysext refresh` → `Invalid argument` | `.raw` compressed with zstd (kernel has no SQUASHFS_ZSTD) | use `mksquashfs … -comp gzip` (build.sh does this) |
+| `tailscaled.service inactive`, but Tailscale appears to be running | Parallel `tailscale/tailscale` Docker container | `docker stop tailscale && docker update --restart=no tailscale` |
+| Service starts, `BackendState=NeedsLogin` | normal after first install | `sudo tailscale up` |
+| Subnet-router routes don't work | IP forwarding not enabled | see "IP forwarding" above |
 
 Logs:
 
@@ -201,14 +175,14 @@ sudo tailscale netcheck
 
 ---
 
-## Lizenz
+## License
 
-MIT (siehe [LICENSE](LICENSE)). Tailscale-Binaries sind BSD-3-Clause (Tailscale Inc.); siehe [NOTICE](NOTICE).
+MIT (see [LICENSE](LICENSE)). Tailscale binaries are BSD-3-Clause; see [NOTICE](NOTICE).
 
 ---
 
-## Inspiration / Verwandtes
+## Related
 
-- Buildroot-Rezept: [package/tailscale/tailscale.mk](https://github.com/buildroot/buildroot/blob/master/package/tailscale/tailscale.mk)
-- Existierende ZimaOS-Drittanbieter-sysexts: [chicohaager/cron](https://github.com/chicohaager/cron) (Vorbild für Mod-Store-Submission)
+- Buildroot recipe: [package/tailscale/tailscale.mk](https://github.com/buildroot/buildroot/blob/master/package/tailscale/tailscale.mk)
+- Existing ZimaOS third-party sysext: [chicohaager/cron](https://github.com/chicohaager/cron)
 - ZimaOS Mod-Store: [IceWhaleTech/Mod-Store](https://github.com/IceWhaleTech/Mod-Store)

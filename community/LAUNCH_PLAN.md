@@ -1,82 +1,84 @@
-# Launch-Plan — empfohlene Reihenfolge
+# Launch plan — recommended order
 
-Alles unter `posts/` ist drop-in-fertig. Username ist bereits auf `chicohaager` gesetzt — fülle nur Release-Tag aus, dann Copy & Paste.
+Everything under `posts/` is drop-in ready. The GitHub handle is already set to `chicohaager` — only the release tag needs to be filled in, then copy & paste.
+
+> Note: GitHub repo + release `v1.0.0` are already published — Step 0 is just the recap.
 
 ---
 
-## Schritt 0 — GitHub-Repo public + Release (Voraussetzung)
+## Step 0 — GitHub repo public + release (prerequisite — done)
 
 ```bash
 cd ~/dev/zimaos-tailscale-sysext
 gh repo create zimaos-tailscale-sysext --public --source=. --remote=origin --push
-TAILSCALE_VERSION=1.96.4 ./build.sh   # erzeugt frische tailscale.raw
+TAILSCALE_VERSION=1.96.4 ./build.sh    # produces a fresh tailscale.raw
 gh release create v1.0.0 tailscale.raw \
   --title "v1.0.0 — Tailscale 1.96.4 sysext for ZimaOS" \
   --notes-file community/posts/00-github-release-notes.md
 ```
 
-⏱ Zeit: ~5 min.
+⏱ Time: ~5 min.
 
 ---
 
-## Schritt 1 — Mod-Store PR (das ist der Money-Shot)
+## Step 1 — Mod-Store PR (this is the money shot)
 
 ```bash
-# Fork klonen, Eintrag hinzufügen, PR
+# Fork the repo, add the entry, open the PR
 gh repo fork IceWhaleTech/Mod-Store --clone --remote
 cd Mod-Store
-# In mod-v2.json den Tailscale-Eintrag als JSON-Objekt anhängen
-# (siehe community/posts/01-mod-store-pr-body.md für genauen JSON-Snippet)
+# Append the tailscale entry to mod-v2.json
+# (see community/posts/01-mod-store-pr-body.md for the JSON snippet)
 git checkout -b add-tailscale
 git commit -am "Add tailscale community sysext"
 gh pr create --title "Add tailscale community sysext module" \
   --body-file ../zimaos-tailscale-sysext/community/posts/01-mod-store-pr-body.md
 ```
 
-**Wenn das gemergt wird, ist Tailscale für jeden ZimaOS-User 1-Klick-installierbar im UI.** Das ist die wichtigste Aktion.
+**If this gets merged, Tailscale becomes a 1-click install in the ZimaOS UI for every ZimaOS user.** This is the single most impactful step.
 
-⏱ Zeit: ~10 min.
+⏱ Time: ~10 min.
 
 ---
 
-## Schritt 2 — ZimaOS Community Forum
+## Step 2 — ZimaOS Community Forum
 
 → <https://community.zimaspace.com/>
-1. Account erstellen / einloggen
-2. Neuer Topic in „Apps & Modules" oder ähnlicher Sektion
-3. Inhalt aus `posts/02-zimaspace-forum-de.md` (oder `-en.md`) kopieren
+1. Create an account / sign in
+2. New topic under "Apps & Modules" (or the closest equivalent section)
+3. Paste content from `posts/02-zimaspace-forum-en.md` (or `-de.md` if you prefer to address the German subset of the community)
 
-⏱ Zeit: ~15 min.
+⏱ Time: ~15 min.
 
 ---
 
-## Schritt 3 — ZimaOS Discord
+## Step 3 — ZimaOS Discord
 
 → <https://discord.gg/f9nzbmpMtU>
-- Channel `#community-projects` (oder `#general`, je nach Server-Layout)
-- Inhalt aus `posts/03-discord-announce.md` kopieren
+- Channel `#community-projects` (or `#general`, depending on the server layout)
+- Paste content from `posts/03-discord-announce.md`
 
-⏱ Zeit: ~5 min.
+⏱ Time: ~5 min.
 
 ---
 
-## Optional Phase B (24–48 h später, wenn #1–#3 Resonanz haben)
+## Optional — Phase B (24–48 h later, once Steps 1–3 have traction)
 
-| Schritt | Datei | Kanal |
-|---------|-------|-------|
-| 4 | `posts/04-reddit-selfhosted.md` | r/selfhosted (Wochenende = bessere Sichtbarkeit) |
-| 5 | dito, cross-post | r/homelab |
+| Step | File | Channel |
+|------|------|---------|
+| 4 | `posts/04-reddit-selfhosted.md` | r/selfhosted (weekend = better visibility) |
+| 5 | same content, cross-post | r/homelab |
 | 6 | `posts/05-tailscale-forum.md` | <https://forum.tailscale.com/> (Community Showcase) |
-| 7 | `posts/06-bluesky-mastodon-x.md` | drei kurze 280-Zeichen-Posts |
-| 8 | `posts/07-hackernews-show-hn.md` | nur bei wirklicher Traktion |
+| 7 | `posts/06-bluesky-mastodon-x.md` | three short ≤280-char posts |
+| 8 | `posts/07-hackernews-show-hn.md` | only once you have real engagement |
 
-Optional: Asciinema-Demo (Skript in `posts/08-asciinema-script.md`) — verlinkt aus Reddit/Tweets, multipliziert Reichweite.
+Optional: an asciinema demo (script in `posts/08-asciinema-script.md`) — embeddable in Reddit/Bluesky posts, multiplies reach.
 
 ---
 
-## Was du **nicht** tun solltest
+## What you should **not** do
 
-- ❌ Alle Kanäle gleichzeitig fluten — wirkt spammig, und du kannst auf Diskussionen nicht parallel reagieren.
-- ❌ Reddit ohne Demo — Selfhosted-Subreddit ist visuell-verwöhnt; ein Asciinema-Cast oder Screenshot drosselt die „looks fishy"-Reaktion.
-- ❌ HN posten bevor #1–#3 Anlauf-Diskussion haben — HN-Comments können brutal sein, du willst belastbare Antworten parat.
-- ❌ Den Bug-Report (`mod-store/ICEWHALE_KERNEL_REQUEST.md`) als separates Issue VOR dem Mod-Store-PR einreichen — IceWhale sieht dann zwei unverbundene Tickets statt eines kohärenten Beitrags.
+- ❌ Flood every channel at once — looks spammy and you can't keep up with parallel discussions.
+- ❌ Post to Reddit without a demo — the selfhosted subreddit is visually demanding; an asciinema cast or screenshot kills the "looks fishy" reaction.
+- ❌ Post to HN before Steps 1–3 have any momentum — HN comments are brutal on Show-HNs with no engagement signals.
+- ❌ File the kernel-config request (`mod-store/ICEWHALE_KERNEL_REQUEST.md`) as a separate issue **before** the Mod-Store PR — IceWhale would see two disconnected tickets instead of one coherent contribution. File it after the PR is at least under discussion.
