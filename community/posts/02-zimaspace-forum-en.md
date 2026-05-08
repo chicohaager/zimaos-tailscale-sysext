@@ -1,21 +1,16 @@
-# [Module] Native Tailscale on ZimaOS — as a systemd-sysext
+# Tailscale running natively on ZimaOS — sharing a sysext module
 
-Hi all,
+Hey folks,
 
-I packaged Tailscale as a native `systemd-sysext` module for ZimaOS. If you've been running Tailscale in a Docker container and ran into the usual limitations (`--tun=userspace-networking`, no real subnet-router, awkward exit-node) — this runs directly on the host as a regular systemd service with proper TUN.
+I've been running ZimaOS on a ZimaCube for a while as my main homelab box, and one thing that always bugged me was getting Tailscale onto it cleanly. The Docker container works, but it runs with `--tun=userspace-networking`, which means no real subnet-router and a slightly weird networking story. I wanted Tailscale to feel like a first-class citizen on the host the same way it does on a regular Linux server — `systemctl status tailscaled` and done.
 
-**Repo:** <https://github.com/chicohaager/zimaos-tailscale-sysext>
+Since ZimaOS has a read-only root and no package manager, the obvious "just `apt install`" path isn't there. But I noticed ZimaOS is Buildroot-based, and Buildroot already has an [official Tailscale recipe](https://github.com/buildroot/buildroot/blob/master/package/tailscale/tailscale.mk) — it builds the daemon, drops it into `/usr/bin`, installs the systemd unit, etc. The natural Buildroot equivalent that doesn't require rebuilding the whole ZimaOS image is `systemd-sysext`, which is what ZimaOS uses for its own modules anyway (cron, casadrop, web-ftp-client, …). Third-party sysexts are accepted in the Mod-Store too.
 
-## What's in the box
+So I packaged Tailscale exactly the same way the upstream Buildroot recipe does — same paths, same symlinks, same systemd unit shape — but as a runtime sysext extension instead of a kernel-image change. State goes under `/DATA/AppData/tailscale/` (because `/var/` is tmpfs on ZimaOS, otherwise you'd lose your auth on every reboot). One file gets dropped into `/var/lib/extensions/`, `systemd-sysext refresh`, and you're done.
 
-- `build.sh` — reproducibly builds a `tailscale.raw` from the official Tailscale static tarball
-- `install.sh` — one-shot installer on the ZimaOS host (sanity-check → build → deploy → enable service)
-- `uninstall.sh` — clean removal, optionally preserves auth state under `/DATA/AppData/tailscale/`
-- README in DE+EN, MIT license, Mod-Store submission template
+Repo: <https://github.com/chicohaager/zimaos-tailscale-sysext>
 
-Layout matches the upstream Buildroot recipe `package/tailscale/tailscale.mk` 1:1 — `tailscaled` in `/usr/bin/`, symlink in `/usr/sbin/`, unit in `/usr/lib/systemd/system/`. The only ZimaOS-specific tweak: state lives under `/DATA/AppData/tailscale/` instead of `/var/lib/tailscale/`, because `/var/` is tmpfs on ZimaOS.
-
-## Quick install
+Quick install on the host:
 
 ```bash
 git clone https://github.com/chicohaager/zimaos-tailscale-sysext
@@ -24,20 +19,16 @@ sudo ./install.sh
 sudo tailscale up
 ```
 
-Then open the printed login URL in your browser — done. Survives reboot automatically (`/var/lib/extensions/` is a bind-mount onto ext4 on ZimaOS, not tmpfs — `systemd-sysext.service` re-loads it at boot).
+A few things worth mentioning upfront:
 
-## Verified
+- **It survives reboots and ZimaOS updates.** `/var/lib/extensions/` is a bind-mount onto the ext4 partition on ZimaOS (despite the `/var` prefix, which threw me at first), and `systemd-sysext.service` re-merges the extension at boot. After a ZimaOS upgrade, just re-run `install.sh` and your auth state is still there.
+- **The installer rebuilds the `.raw` from the official Tailscale static tarball** (`pkgs.tailscale.com`) and verifies the SHA256 against Tailscale's own published hash. No mystery binaries.
+- **One real limitation, fully honest:** the ZimaOS kernel image doesn't enable `CONFIG_IPV6_MULTIPLE_TABLES` (and a few related flags). Tailscale notices this at startup and auto-disables IPv6 tunneling — IPv4 mesh, subnet-router and exit-node all work fine, but IPv6-over-tailnet doesn't. There's nothing a userspace module can do about that; the kernel has to be rebuilt by IceWhale. I've drafted a feature-request body in the repo (`mod-store/ICEWHALE_KERNEL_REQUEST.md`) — if a few of you upvote it once it's filed, that helps prioritize a fix.
 
-ZimaOS v1.6.1 / kernel 6.12.25 / ZimaCube, Tailscale 1.96.4.
+There's also a Mod-Store PR open in parallel — once that gets merged, this becomes a regular 1-click install in the ZimaOS UI alongside the other community modules. (For context: I also maintain the [`chicohaager/cron`](https://github.com/chicohaager/cron) module that's already in the Mod-Store, so this is the same delivery mechanism.)
 
-## Known limitation: IPv6
+Verified working on ZimaOS v1.6.1 / kernel 6.12.25 / ZimaCube. Should be fine on ZimaCube Pro too, and on ZimaBoard if you set `ARCH=arm64` (haven't tested ARM myself yet — would love confirmation if anyone has one).
 
-ZimaOS's kernel currently does not enable `CONFIG_IPV6_MULTIPLE_TABLES` (and a few related flags). Tailscale logs `disabling tunneled IPv6 due to system IPv6 config` at startup and turns IPv6 tunneling off. **IPv4 mesh, subnet-router and exit-node work without any restriction.** A drop-in bug report for IceWhale is in the repo at `mod-store/ICEWHALE_KERNEL_REQUEST.md` — if you 👍 the issue once it's filed, it improves the odds of a kernel fix in a future ZimaOS release.
+Anyway — figured I'd share in case anyone else has wanted real Tailscale on the host without the Docker workaround. Happy to answer questions or take feedback (here or via GitHub issues), and if anyone runs into something the installer doesn't handle gracefully, please tell me.
 
-## Mod-Store PR
-
-I've also opened a PR against `IceWhaleTech/Mod-Store` so the module shows up as a 1-click install in the ZimaOS UI once merged. After that, no git/build needed.
-
-Feedback and bug reports welcome — GitHub issues or this thread.
-
-— Holger
+Holger / chicohaager
