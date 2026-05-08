@@ -2,7 +2,7 @@
 
 Just released a `systemd-sysext` module that runs Tailscale directly on the ZimaOS host (no Docker, real TUN, full subnet-router/exit-node support).
 
-📦 **Repo:** <https://github.com/<DEIN-USER>/zimaos-tailscale-sysext>
+📦 **Repo:** <https://github.com/chicohaager/zimaos-tailscale-sysext>
 ✅ Verified on ZimaOS v1.6.1, kernel 6.12.25, ZimaCube
 🔁 Reboot-persistent (loaded via `systemd-sysext.service`)
 🛠 One-command install: `sudo ./install.sh && sudo tailscale up`

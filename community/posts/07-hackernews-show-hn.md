@@ -5,7 +5,7 @@
 Show HN: Native Tailscale on ZimaOS via systemd-sysext, no Docker
 ```
 
-**URL:** `https://github.com/<DEIN-USER>/zimaos-tailscale-sysext`
+**URL:** `https://github.com/chicohaager/zimaos-tailscale-sysext`
 
 **First comment (post yourself, give context — HN convention):**
 

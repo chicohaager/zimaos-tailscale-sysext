@@ -9,7 +9,7 @@ Tailscale is a zero-config mesh VPN built on WireGuard. This module installs the
 ## Module details
 
 - **Name:** `tailscale`
-- **Source repo:** https://github.com/<CHANGE-ME>/zimaos-tailscale-sysext
+- **Source repo:** https://github.com/<chicohaager>/zimaos-tailscale-sysext
 - **License:** MIT (build/packaging) + BSD-3-Clause (upstream Tailscale)
 - **Architectures:** amd64 (arm64 supported via build flag)
 - **Verified on:** ZimaOS v1.6.1 / kernel 6.12.25 / ZimaCube (2026-05-08)
@@ -24,7 +24,7 @@ Mirrors the Buildroot `package/tailscale/tailscale.mk` recipe. State directory a
 {
   "name": "tailscale",
   "title": "Tailscale",
-  "repo": "<CHANGE-ME>/zimaos-tailscale-sysext"
+  "repo": "<chicohaager>/zimaos-tailscale-sysext"
 }
 ```
 

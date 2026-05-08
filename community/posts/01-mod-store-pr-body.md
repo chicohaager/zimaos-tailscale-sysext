@@ -1,5 +1,7 @@
 # Add Tailscale community sysext module
 
+(Following up on the [`chicohaager/cron`](https://github.com/chicohaager/cron) module that's already in the Mod-Store — submitting another sysext on the same model.)
+
 ## What
 
 [Tailscale](https://tailscale.com) — a zero-config WireGuard-based mesh VPN — packaged as a community `systemd-sysext` module for ZimaOS.
@@ -16,7 +18,7 @@ The install layout follows the upstream Buildroot recipe [`package/tailscale/tai
 {
   "name": "tailscale",
   "title": "Tailscale",
-  "repo": "<DEIN-USER>/zimaos-tailscale-sysext"
+  "repo": "chicohaager/zimaos-tailscale-sysext"
 }
 ```
 
@@ -35,6 +37,6 @@ The install layout follows the upstream Buildroot recipe [`package/tailscale/tai
 
 ## Side note for the kernel team
 
-A small set of kernel `CONFIG_*` flags is currently missing for full IPv6 Tailscale functionality. I've documented this in [`mod-store/ICEWHALE_KERNEL_REQUEST.md`](https://github.com/<DEIN-USER>/zimaos-tailscale-sysext/blob/main/mod-store/ICEWHALE_KERNEL_REQUEST.md) — happy to file it as a separate issue against the ZimaOS repo once this PR is in. Doesn't block this module — IPv4 works fully today.
+A small set of kernel `CONFIG_*` flags is currently missing for full IPv6 Tailscale functionality. I've documented this in [`mod-store/ICEWHALE_KERNEL_REQUEST.md`](https://github.com/chicohaager/zimaos-tailscale-sysext/blob/main/mod-store/ICEWHALE_KERNEL_REQUEST.md) — happy to file it as a separate issue against the ZimaOS repo once this PR is in. Doesn't block this module — IPv4 works fully today.
 
 Thanks for considering 🙏

@@ -24,7 +24,7 @@ $ ls /var/lib/extensions/
 casadrop.raw  cron.raw  web-ftp-client.raw  xpkg.raw  zimaos_ai.raw
 
 # 3. The repo + one-shot installer (5 s)
-$ git clone https://github.com/<DEIN-USER>/zimaos-tailscale-sysext && cd zimaos-tailscale-sysext
+$ git clone https://github.com/chicohaager/zimaos-tailscale-sysext && cd zimaos-tailscale-sysext
 
 # 4. Install (~ 30 s — most of the cast)
 $ sudo ./install.sh

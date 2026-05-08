@@ -1,6 +1,6 @@
 # Short-form social posts (≤ 280 chars)
 
-Pick the variant matching the audience. Replace `<DEIN-USER>` with your GitHub handle.
+Pick the variant matching the audience.
 
 ---
 
@@ -13,7 +13,7 @@ Packaged as a systemd-sysext extension that mirrors the upstream Buildroot recip
 
 `sudo ./install.sh && sudo tailscale up` and you're done.
 
-https://github.com/<DEIN-USER>/zimaos-tailscale-sysext
+https://github.com/chicohaager/zimaos-tailscale-sysext
 
 #selfhosted #ZimaOS #Tailscale
 ```
@@ -31,7 +31,7 @@ Native Tailscale on ZimaOS without Docker:
 → one-shot installer
 
 Repo + drop-in IceWhale kernel-config request:
-https://github.com/<DEIN-USER>/zimaos-tailscale-sysext
+https://github.com/chicohaager/zimaos-tailscale-sysext
 ```
 
 ---
@@ -45,5 +45,5 @@ I packaged it as a systemd-sysext overlay that follows the upstream Buildroot re
 
 No Docker, no userspace-networking limits, real subnet-router.
 
-https://github.com/<DEIN-USER>/zimaos-tailscale-sysext
+https://github.com/chicohaager/zimaos-tailscale-sysext
 ```

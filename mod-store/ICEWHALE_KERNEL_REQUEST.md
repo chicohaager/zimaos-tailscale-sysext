@@ -6,7 +6,7 @@ Please enable a small set of additional `CONFIG_*` flags in the ZimaOS kernel bu
 
 ## Reproduction
 
-ZimaOS v1.6.1 (any), kernel 6.12.25, ZimaCube. Install the upstream Tailscale daemon (e.g. via the [zimaos-tailscale-sysext](https://github.com/CHANGE-ME/zimaos-tailscale-sysext) module or any direct install) and run `tailscale up`. `journalctl -u tailscaled` shows:
+ZimaOS v1.6.1 (any), kernel 6.12.25, ZimaCube. Install the upstream Tailscale daemon (e.g. via the [zimaos-tailscale-sysext](https://github.com/chicohaager/zimaos-tailscale-sysext) module or any direct install) and run `tailscale up`. `journalctl -u tailscaled` shows:
 
 ```
 router: disabling tunneled IPv6 due to system IPv6 config:
@@ -55,6 +55,6 @@ This is a minimal, low-risk change — no userland ABI impact, no surface for ne
 
 - Buildroot recipe: <https://github.com/buildroot/buildroot/blob/master/package/tailscale/tailscale.mk>
 - Tailscale documentation on Linux requirements: <https://tailscale.com/kb/1019/install-linux>
-- Community sysext module: <https://github.com/CHANGE-ME/zimaos-tailscale-sysext>
+- Community sysext module: <https://github.com/chicohaager/zimaos-tailscale-sysext>
 
 Thanks for considering 🙏

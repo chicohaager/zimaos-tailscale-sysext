@@ -16,7 +16,7 @@ First release of `zimaos-tailscale-sysext`: a native Tailscale install for ZimaO
 
 ## Known limitation: IPv6
 
-ZimaOS's kernel does **not** enable `CONFIG_IPV6_MULTIPLE_TABLES` (and a few related flags). Tailscale auto-disables IPv6 tunneling at runtime as a result. **IPv4 mesh, subnet-router and exit-node work without restriction.** A ready-to-file kernel-config request for IceWhale is included at [`mod-store/ICEWHALE_KERNEL_REQUEST.md`](https://github.com/<DEIN-USER>/zimaos-tailscale-sysext/blob/main/mod-store/ICEWHALE_KERNEL_REQUEST.md).
+ZimaOS's kernel does **not** enable `CONFIG_IPV6_MULTIPLE_TABLES` (and a few related flags). Tailscale auto-disables IPv6 tunneling at runtime as a result. **IPv4 mesh, subnet-router and exit-node work without restriction.** A ready-to-file kernel-config request for IceWhale is included at [`mod-store/ICEWHALE_KERNEL_REQUEST.md`](https://github.com/chicohaager/zimaos-tailscale-sysext/blob/main/mod-store/ICEWHALE_KERNEL_REQUEST.md).
 
 ## Asset
 
@@ -26,7 +26,7 @@ ZimaOS's kernel does **not** enable `CONFIG_IPV6_MULTIPLE_TABLES` (and a few rel
 ## Quick install
 
 ```bash
-git clone https://github.com/<DEIN-USER>/zimaos-tailscale-sysext
+git clone https://github.com/chicohaager/zimaos-tailscale-sysext
 cd zimaos-tailscale-sysext
 sudo ./install.sh
 sudo tailscale up

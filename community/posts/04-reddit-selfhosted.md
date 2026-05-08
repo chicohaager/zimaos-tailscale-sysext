@@ -2,7 +2,7 @@
 
 **TL;DR:** ZimaOS has a read-only root and no package manager, so installing Tailscale natively is awkward. I packaged it as a `systemd-sysext` extension that mirrors the upstream Buildroot recipe 1:1 — runs as a regular systemd service on the host, full subnet-router/exit-node support, survives reboots and ZimaOS updates.
 
-**Repo:** https://github.com/<DEIN-USER>/zimaos-tailscale-sysext
+**Repo:** https://github.com/chicohaager/zimaos-tailscale-sysext
 
 ## Why not just Docker?
 
@@ -29,7 +29,7 @@ The only ZimaOS-specific tweak: state directory points at `/DATA/AppData/tailsca
 ## Reproduction
 
 ```bash
-git clone https://github.com/<DEIN-USER>/zimaos-tailscale-sysext
+git clone https://github.com/chicohaager/zimaos-tailscale-sysext
 cd zimaos-tailscale-sysext
 sudo ./install.sh
 sudo tailscale up
