@@ -1,4 +1,10 @@
-# [Kernel Config Request] Enable IPv6 policy routing & netfilter MARK target for native VPN support
+# [Feature Request] Enable IPv6 policy routing & netfilter MARK target in kernel for native VPN clients
+
+> Related existing issues (for context — this request is scoped to the kernel-config side):
+> - #370 — wireguard kernel module
+> - #485 — Tailscale from app store is in a restart loop
+> - #241 — Feature Request: Native GUI Client for Linux
+> - #242 — Tailscale (general)
 
 ## Summary
 
