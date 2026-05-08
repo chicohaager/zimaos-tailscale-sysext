@@ -41,15 +41,53 @@ done
 zcat /proc/config.gz 2>/dev/null | grep -q '^CONFIG_SQUASHFS_ZLIB=y' \
   || echo "⚠ kernel SQUASHFS_ZLIB not detected — gzip mount may fail"
 
-# IPv6 capability audit (informational — sysext can't fix kernel configs)
-if zcat /proc/config.gz 2>/dev/null | grep -qE '^# CONFIG_IPV6_MULTIPLE_TABLES is not set'; then
-  echo ""
-  echo "⚠ IPv6 limitation detected:"
-  echo "    CONFIG_IPV6_MULTIPLE_TABLES is not set in this kernel."
-  echo "    Tailscale will disable IPv6 tunneling at runtime — IPv4 mesh works fine,"
-  echo "    but IPv6-over-tailnet is unavailable until IceWhale enables this kernel"
-  echo "    config. See: mod-store/ICEWHALE_KERNEL_REQUEST.md"
-  echo ""
+# IPv6 capability audit (informational — sysext can't fix kernel configs).
+# We capture the kernel config once and run pure-bash checks (no pipe-in-if,
+# which can interact subtly with `set -o pipefail`).
+KCFG=""
+if [[ -r /proc/config.gz ]]; then
+  KCFG="$(zcat /proc/config.gz 2>/dev/null || true)"
+elif [[ -r "/boot/config-$(uname -r)" ]]; then
+  KCFG="$(cat "/boot/config-$(uname -r)" 2>/dev/null || true)"
+fi
+
+if [[ -n "$KCFG" ]]; then
+  IPV6_MISSING=()
+  # Each line: <CONFIG_NAME>|<purpose>
+  for entry in \
+      "CONFIG_IPV6_MULTIPLE_TABLES|🔴 hard blocker — Tailscale auto-disables IPv6 tunneling without it" \
+      "CONFIG_IPV6_SUBTREES|🟡 source-prefix IPv6 routes" \
+      "CONFIG_NETFILTER_XT_TARGET_MARK|🟡 iptables -j MARK target (Tailscale falls back to nft mode)" \
+      "CONFIG_IP6_NF_TARGET_MASQUERADE|🟡 IPv6 subnet-router masquerading" ; do
+    name="${entry%%|*}"
+    purpose="${entry#*|}"
+    # Treat both "# … is not set" and "absent entirely" as missing.
+    if ! grep -qE "^${name}=[ym]\b" <<<"$KCFG"; then
+      IPV6_MISSING+=("    • ${name}  ${purpose}")
+    fi
+  done
+
+  if (( ${#IPV6_MISSING[@]} > 0 )); then
+    echo ""
+    echo "⚠  IPv6 capability audit — ${#IPV6_MISSING[@]} kernel config(s) missing on this ZimaOS host:"
+    echo ""
+    printf '%s\n' "${IPV6_MISSING[@]}"
+    echo ""
+    echo "    Effect at runtime: Tailscale will log"
+    echo "      'router: disabling tunneled IPv6 due to system IPv6 config'"
+    echo "    and run IPv4-only inside the tailnet."
+    echo ""
+    echo "    👉 This is a ZimaOS kernel-image issue, NOT a bug in this module."
+    echo "       The kernel must be rebuilt by IceWhale with these flags enabled."
+    echo ""
+    echo "    📝 Action: please file the included feature request against"
+    echo "       https://github.com/IceWhaleTech/ZimaOS/issues — ready-to-paste"
+    echo "       body in:  mod-store/ICEWHALE_KERNEL_REQUEST.md"
+    echo "       (More 👍 on the issue raises the odds of it being prioritized.)"
+    echo ""
+    echo "    Continuing — IPv4 mesh, subnet-router and exit-node work fine."
+    echo ""
+  fi
 fi
 
 # /var/lib/extensions writable & a directory
