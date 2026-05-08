@@ -3,3 +3,8 @@ tailscale.raw
 tailscale_*_amd64/
 tailscale_*_arm64/
 .DS_Store
+
+# Maintainer-internal launch material — kept locally, not in the public repo.
+community/
+mod-store/PR_TEMPLATE.md
+mod-store/entry.json
