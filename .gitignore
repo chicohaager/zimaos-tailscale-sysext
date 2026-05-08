@@ -1,0 +1,5 @@
+tailscale.raw
+*.tgz
+tailscale_*_amd64/
+tailscale_*_arm64/
+.DS_Store

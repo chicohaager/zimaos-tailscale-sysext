@@ -1,0 +1,28 @@
+zimaos-tailscale-sysext
+=======================
+
+Build scripts and packaging in this repository are licensed under the MIT
+License (see LICENSE).
+
+Bundled / referenced upstream components:
+
+  Tailscale (https://github.com/tailscale/tailscale)
+    Licensed under BSD-3-Clause. The build script downloads the official
+    static Linux release tarball from https://pkgs.tailscale.com/stable/
+    and bundles the `tailscale` and `tailscaled` binaries into the
+    sysext image. No source modification is performed.
+
+  systemd unit file (systemd/tailscaled.service)
+    Adapted from the upstream tailscale.com cmd/tailscaled/tailscaled.service
+    (BSD-3-Clause). Modifications:
+      - StateDirectory replaced by an explicit --state path under /DATA/
+        (ZimaOS-specific — /var/lib/ is tmpfs on this OS).
+      - EnvironmentFile made optional (prefixed with `-`).
+      - Defaults inlined via Environment= so /etc/default/tailscaled is
+        not required.
+
+Inspired by the Buildroot `package/tailscale/tailscale.mk` recipe
+(https://github.com/buildroot/buildroot/blob/master/package/tailscale/tailscale.mk).
+The install layout mirrors the buildroot package one-to-one; the difference
+is that this repo distributes a runtime sysext extension instead of patching
+the OS image itself, since the ZimaOS source tree is not public.
