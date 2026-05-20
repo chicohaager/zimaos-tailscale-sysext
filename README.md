@@ -90,13 +90,18 @@ curl -fsSL https://raw.githubusercontent.com/<YOU>/zimaos-tailscale-sysext/main/
 ./build.sh                            # latest stable
 TAILSCALE_VERSION=1.96.4 ./build.sh   # pinned
 
-scp tailscale.raw root@zimaos:/tmp/
+scp tailscale.raw systemd/tailscaled-watchdog.* root@zimaos:/tmp/
 
 # on the host:
 sudo cp /tmp/tailscale.raw /var/lib/extensions/
 sudo systemd-sysext refresh
+
+# boot-order watchdog (see "Boot-order workaround" above):
+sudo cp /tmp/tailscaled-watchdog.service /tmp/tailscaled-watchdog.timer /etc/systemd/system/
+
 sudo systemctl daemon-reload
 sudo systemctl enable --now tailscaled
+sudo systemctl enable --now tailscaled-watchdog.timer
 sudo tailscale up
 ```
 
@@ -144,7 +149,22 @@ sudo sysctl --system
 - `/var/lib/extensions/tailscale.raw` is persistent despite the `/var` prefix — it's a bind-mount from `/var/lib/casaos_data/.extensions/` on the ext4 partition.
 - Auth state lives under `/DATA/AppData/tailscale/`.
 - After a ZimaOS upgrade just re-run `install.sh` (or rebuild and copy the `.raw`). Auth state survives.
-- After reboot `systemd-sysext.service` re-merges the extension, `tailscaled.service` starts automatically.
+- After reboot `systemd-sysext.service` re-merges the extension and the bundled `tailscaled-watchdog.timer` starts `tailscaled` — see [Boot-order workaround](#boot-order-workaround).
+
+---
+
+## Boot-order workaround
+
+`tailscaled.service` ships **inside** `tailscale.raw`. On ZimaOS, `multi-user.target` resolves its `WantedBy=` symlinks *before* `systemd-sysext.service` finishes merging the overlay — so at that moment the in-sysext unit doesn't exist yet and is never scheduled. Left alone, the daemon silently stays `inactive (dead)` after every reboot, with no log line and no error.
+
+The fix is a small watchdog installed onto the **persistent** root filesystem (`/etc/systemd/system/`, which is not part of the sysext), so it is present from early boot:
+
+| Unit | Role |
+|---|---|
+| `tailscaled-watchdog.timer` | `OnBootSec=15` — fires ~15 s into boot, after the overlay is merged |
+| `tailscaled-watchdog.service` | oneshot: `systemctl is-active tailscaled \|\| systemctl start tailscaled` |
+
+`install.sh` deploys and enables both; `uninstall.sh` removes them. This mirrors the workaround ZimaOS's own `cron.raw` module uses ([`chicohaager/cron`](https://github.com/chicohaager/cron)).
 
 ---
 
@@ -162,6 +182,7 @@ sudo ./uninstall.sh --purge    # also wipe /DATA/AppData/tailscale/
 | Symptom | Cause | Fix |
 |---|---|---|
 | `systemd-sysext refresh` → `Invalid argument` | `.raw` compressed with zstd (kernel has no SQUASHFS_ZSTD) | use `mksquashfs … -comp gzip` (build.sh does this) |
+| `tailscaled.service` `inactive (dead)` after a reboot — no log, no error | sysext merged after `multi-user.target` was assembled (see [Boot-order workaround](#boot-order-workaround)) | the bundled watchdog handles this — make sure it is enabled: `sudo systemctl enable --now tailscaled-watchdog.timer` |
 | `tailscaled.service inactive`, but Tailscale appears to be running | Parallel `tailscale/tailscale` Docker container | `docker stop tailscale && docker update --restart=no tailscale` |
 | Service starts, `BackendState=NeedsLogin` | normal after first install | `sudo tailscale up` |
 | Subnet-router routes don't work | IP forwarding not enabled | see "IP forwarding" above |

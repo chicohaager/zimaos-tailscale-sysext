@@ -29,6 +29,13 @@ if systemctl list-unit-files tailscaled.service >/dev/null 2>&1; then
   systemctl disable --now tailscaled.service 2>/dev/null || true
 fi
 
+# Remove the boot-order watchdog (lives on the persistent root, not the sysext)
+echo "▶ Removing boot-order watchdog"
+systemctl disable --now tailscaled-watchdog.timer 2>/dev/null || true
+systemctl stop tailscaled-watchdog.service 2>/dev/null || true
+rm -f /etc/systemd/system/tailscaled-watchdog.timer \
+      /etc/systemd/system/tailscaled-watchdog.service
+
 # Remove .raw (both possible locations) + refresh
 for p in /var/lib/extensions/tailscale.raw /DATA/.extensions/tailscale.raw; do
   if [[ -f "$p" ]]; then

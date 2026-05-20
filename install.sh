@@ -94,7 +94,7 @@ fi
 [[ -d /var/lib/extensions ]] || { echo "✗ /var/lib/extensions missing" >&2; exit 1; }
 
 # Conflict check: existing tailscale daemons / docker container
-if pgrep -f '/usr/sbin/tailscaled\|^tailscaled' >/dev/null; then
+if pgrep -x tailscaled >/dev/null; then
   echo "⚠ a tailscaled process is already running:"
   pgrep -af 'tailscaled' || true
   echo "  This installer will replace it with the systemd-managed sysext daemon."
@@ -117,16 +117,23 @@ if [[ -x "$SCRIPT_DIR/build.sh" && -d "$SCRIPT_DIR/systemd" ]]; then
   echo "▶ Local checkout detected — building from $SCRIPT_DIR"
   ( cd "$SCRIPT_DIR" && TAILSCALE_VERSION="$TAILSCALE_VERSION" ARCH="$ARCH" ./build.sh )
   RAW="$SCRIPT_DIR/tailscale.raw"
+  UNIT_SRC="$SCRIPT_DIR/systemd"
 else
   echo "▶ Fetching build artifacts from $REPO_RAW"
-  curl -fsSL "$REPO_RAW/build.sh"                         -o "$WORK/build.sh"
+  curl -fsSL "$REPO_RAW/build.sh"                            -o "$WORK/build.sh"
   mkdir -p "$WORK/systemd"
-  curl -fsSL "$REPO_RAW/systemd/tailscaled.service"       -o "$WORK/systemd/tailscaled.service"
+  curl -fsSL "$REPO_RAW/systemd/tailscaled.service"          -o "$WORK/systemd/tailscaled.service"
+  curl -fsSL "$REPO_RAW/systemd/tailscaled-watchdog.service" -o "$WORK/systemd/tailscaled-watchdog.service"
+  curl -fsSL "$REPO_RAW/systemd/tailscaled-watchdog.timer"   -o "$WORK/systemd/tailscaled-watchdog.timer"
   chmod +x "$WORK/build.sh"
   ( cd "$WORK" && TAILSCALE_VERSION="$TAILSCALE_VERSION" ARCH="$ARCH" ./build.sh )
   RAW="$WORK/tailscale.raw"
+  UNIT_SRC="$WORK/systemd"
 fi
 [[ -s "$RAW" ]] || { echo "✗ build failed — no .raw produced" >&2; exit 1; }
+for u in tailscaled-watchdog.service tailscaled-watchdog.timer; do
+  [[ -s "$UNIT_SRC/$u" ]] || { echo "✗ missing watchdog unit: $UNIT_SRC/$u" >&2; exit 1; }
+done
 
 # ── Deploy ───────────────────────────────────────────────────────────────
 echo ""
@@ -136,9 +143,19 @@ install -m 0644 "$RAW" /var/lib/extensions/tailscale.raw
 echo "▶ Refreshing sysext overlay"
 systemd-sysext refresh
 
-echo "▶ Enabling tailscaled.service"
+# Boot-order watchdog — see README "Boot-order workaround".
+# tailscaled.service lives *inside* the sysext; on ZimaOS multi-user.target is
+# assembled before systemd-sysext.service finishes merging the overlay, so the
+# in-sysext unit is missed at boot. These two units live on the persistent root
+# and start tailscaled a few seconds into boot, once the overlay is merged.
+echo "▶ Installing boot-order watchdog → /etc/systemd/system/"
+install -m 0644 "$UNIT_SRC/tailscaled-watchdog.service" /etc/systemd/system/tailscaled-watchdog.service
+install -m 0644 "$UNIT_SRC/tailscaled-watchdog.timer"   /etc/systemd/system/tailscaled-watchdog.timer
+
+echo "▶ Enabling tailscaled.service + boot-order watchdog"
 systemctl daemon-reload
 systemctl enable --now tailscaled.service
+systemctl enable --now tailscaled-watchdog.timer
 
 # ── Verify ───────────────────────────────────────────────────────────────
 sleep 2
