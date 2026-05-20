@@ -1,0 +1,22 @@
+# tailscaled-watchdog.service — ZimaOS systemd-sysext boot-order workaround.
+#
+# tailscaled.service ships *inside* tailscale.raw (the sysext). On ZimaOS,
+# multi-user.target resolves its WantedBy= symlinks BEFORE systemd-sysext.service
+# finishes merging the /usr overlay — so at that moment the in-sysext unit does
+# not exist yet and is never scheduled. tailscaled then stays inactive (dead)
+# after every reboot, with no log line and no error.
+#
+# This unit lives in /etc/systemd/system/ (persistent root, present from early
+# boot, untouched by the sysext). It is triggered by tailscaled-watchdog.timer
+# a few seconds into boot, once the overlay is guaranteed to be merged, and
+# starts tailscaled on demand.
+#
+# Modeled on the cron.raw workaround — chicohaager/cron, install-watchdog.sh.
+
+[Unit]
+Description=Start tailscaled if the sysext unit was missed at boot
+Documentation=https://github.com/chicohaager/zimaos-tailscale-sysext
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c 'systemctl is-active --quiet tailscaled.service || systemctl start tailscaled.service'

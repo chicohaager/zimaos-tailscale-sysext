@@ -1,0 +1,18 @@
+# tailscaled-watchdog.timer — fires tailscaled-watchdog.service shortly after
+# boot, by which point systemd-sysext.service has merged the /usr overlay and
+# tailscaled.service (inside the sysext) can be loaded on demand.
+#
+# Lives in /etc/systemd/system/ so it is enabled from the persistent root and
+# is itself unaffected by the sysext boot-order race it works around.
+#
+# The timer and service share a base name, so systemd auto-pairs them — no
+# explicit Unit= needed.
+
+[Unit]
+Description=Ensure tailscaled is running after the sysext overlay is merged
+
+[Timer]
+OnBootSec=15
+
+[Install]
+WantedBy=timers.target

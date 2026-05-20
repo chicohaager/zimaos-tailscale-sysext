@@ -9,7 +9,8 @@
 #   TAILSCALE_VERSION=1.96.4 ./build.sh
 #   ARCH=amd64 ./build.sh         # arm64 also supported by Tailscale upstream
 #
-# Reproducibility: pin TAILSCALE_VERSION to get a deterministic .raw.
+# Pin TAILSCALE_VERSION for a repeatable build. Note: mksquashfs embeds file
+# mtimes and a build timestamp, so the .raw bytes/SHA256 still vary per build.
 
 set -euo pipefail
 
@@ -18,12 +19,18 @@ WORK="$(mktemp -d -t ts-sysext-XXXXXX)"
 trap 'rm -rf "$WORK"' EXIT
 
 # ── Resolve Tailscale version ────────────────────────────────────────────
+# Resolve from the stable channel's own manifest — it is the source of truth
+# for what is actually downloadable below. This avoids skew with the GitHub
+# "latest release" tag, needs no GitHub API (60 req/h IP rate limit), and uses
+# only portable ERE (no `\s`, which busybox grep on the ZimaOS host may lack).
 if [[ -z "${TAILSCALE_VERSION:-}" ]]; then
   echo "▶ Querying latest Tailscale stable release..."
-  TAILSCALE_VERSION="$(curl -fsSL https://api.github.com/repos/tailscale/tailscale/releases/latest \
-    | grep -oE '"tag_name":\s*"v[0-9.]+"' | head -1 | grep -oE '[0-9.]+')"
+  TAILSCALE_VERSION="$(curl -fsSL --retry 3 'https://pkgs.tailscale.com/stable/?mode=json' \
+    | grep -oE "tailscale_[0-9]+\.[0-9]+\.[0-9]+_${ARCH}\.tgz" \
+    | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')"
 fi
-[[ -n "$TAILSCALE_VERSION" ]] || { echo "✗ failed to resolve Tailscale version" >&2; exit 1; }
+[[ "$TAILSCALE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] \
+  || { echo "✗ failed to resolve a valid Tailscale version ('$TAILSCALE_VERSION')" >&2; exit 1; }
 echo "▶ Tailscale version: $TAILSCALE_VERSION ($ARCH)"
 
 # ── Download upstream static tarball + verify SHA256 ─────────────────────
