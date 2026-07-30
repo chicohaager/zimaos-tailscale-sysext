@@ -25,9 +25,13 @@ trap 'rm -rf "$WORK"' EXIT
 # only portable ERE (no `\s`, which busybox grep on the ZimaOS host may lack).
 if [[ -z "${TAILSCALE_VERSION:-}" ]]; then
   echo "▶ Querying latest Tailscale stable release..."
-  TAILSCALE_VERSION="$(curl -fsSL --retry 3 'https://pkgs.tailscale.com/stable/?mode=json' \
-    | grep -oE "tailscale_[0-9]+\.[0-9]+\.[0-9]+_${ARCH}\.tgz" \
-    | head -1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')"
+  # No `| head -1` inside the pipeline: head exits after the first line, the
+  # upstream grep dies of SIGPIPE, and with `set -o pipefail` the whole command
+  # substitution fails — which under `set -e` aborts the build at random. Capture
+  # the manifest first, then pick the first match with sed (which reads it all).
+  MANIFEST="$(curl -fsSL --retry 3 'https://pkgs.tailscale.com/stable/?mode=json')"
+  TAILSCALE_VERSION="$(grep -oE "tailscale_[0-9]+\.[0-9]+\.[0-9]+_${ARCH}\.tgz" <<<"$MANIFEST" \
+    | sed -n '1p' | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')"
 fi
 [[ "$TAILSCALE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] \
   || { echo "✗ failed to resolve a valid Tailscale version ('$TAILSCALE_VERSION')" >&2; exit 1; }
