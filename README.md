@@ -86,11 +86,20 @@ originally developed and verified on **v1.6.1, kernel 6.12.25** (2026-05-08).
 
 ## Quick install
 
+On the ZimaOS host:
+
 ```bash
-# On the ZimaOS host as root (or with sudo):
+cd /tmp
+git clone https://github.com/chicohaager/zimaos-tailscale-sysext
+cd zimaos-tailscale-sysext
 sudo ./install.sh
 sudo tailscale up
 ```
+
+`git` ships with ZimaOS (2.53.0 on v1.7.0) and the clone is only ~400 KB — the ~35 MB
+`tailscale.raw` is built on the box, not shipped in the repo. `/tmp` is a tmpfs, so the
+checkout is gone after the next reboot; the installed extension is not (see
+[Persistence & updates](#persistence--updates)).
 
 The installer
 
@@ -100,24 +109,28 @@ The installer
 4. installs to `/var/lib/extensions/`,
 5. enables `tailscaled.service`.
 
-### Via curl
+### Alternative: via curl (no checkout)
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/chicohaager/zimaos-tailscale-sysext/main/install.sh \
   | sudo bash
 ```
 
-(`REPO_RAW` only needs to be set if you run a fork: `sudo REPO_RAW=https://raw.githubusercontent.com/<you>/zimaos-tailscale-sysext/main bash`.)
+`install.sh` then pulls `build.sh` and the systemd units from the repo's `main` branch
+(override with `REPO_RAW=…` for a fork).
 
 ---
 
 ## Manual install
 
+Build on your workstation, copy the artifacts over. Note that ZimaOS v1.7.0 sets
+`PermitRootLogin no` (verified via `sshd -T`), so copy as your normal ZimaOS user:
+
 ```bash
 ./build.sh                            # latest stable
 TAILSCALE_VERSION=1.96.4 ./build.sh   # pinned
 
-scp tailscale.raw systemd/tailscaled-watchdog.* root@zimaos:/tmp/
+scp tailscale.raw systemd/tailscaled-watchdog.* <user>@zimaos:/tmp/
 
 # on the host:
 sudo cp /tmp/tailscale.raw /var/lib/extensions/
