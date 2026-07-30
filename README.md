@@ -21,8 +21,10 @@ This repo packages Tailscale as such an extension. The install layout matches th
 | state | `/var/lib/tailscale` (StateDirectory) | `/DATA/AppData/tailscale/` (ZimaOS-specific) |
 | build | cross-compile via Buildroot Go | upstream static binary |
 
-Verified on **ZimaOS v1.7.0, kernel 6.18.9, ZimaCube** with Tailscale 1.98.10 (2026-07-30);
-originally developed and verified on **v1.6.1, kernel 6.12.25** (2026-05-08).
+Verified on **ZimaOS v1.7.0, kernel 6.18.9, ZimaCube** with Tailscale 1.98.10 (2026-07-30) —
+install run end-to-end from a clean checkout, **including a reboot**: the node came back on its
+own and IPv6 inside the tailnet still carried real traffic. Originally developed and verified on
+**v1.6.1, kernel 6.12.25** (2026-05-08).
 
 ---
 
@@ -205,6 +207,20 @@ The fix is a small watchdog installed onto the **persistent** root filesystem (`
 | `tailscaled-watchdog.service` | oneshot: `systemctl is-active tailscaled \|\| systemctl start tailscaled` |
 
 `install.sh` deploys and enables both; `uninstall.sh` removes them. This mirrors the workaround ZimaOS's own `cron.raw` module uses ([`chicohaager/cron`](https://github.com/chicohaager/cron)).
+
+**Still needed on v1.7.0** — re-verified with a real reboot on 2026-07-30, from the journal of that boot:
+
+```
+08:19:16  boot
+08:19:24  systemd-sysext: Merged extensions into '/usr'
+08:19:32  Starting "Start tailscaled if the sysext unit was missed at boot"   ← the watchdog
+08:19:32  Starting Tailscale node agent
+08:19:34  tailscaled active, Connected
+```
+
+There is no earlier attempt to start `tailscaled` in that boot: systemd never scheduled the
+in-sysext unit itself, the watchdog did. Tailnet IPv6 was carrying traffic again right after
+(`curl -6` → HTTP 200 from two peers), and no `disabling tunneled IPv6` line appeared.
 
 ---
 
