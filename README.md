@@ -54,7 +54,7 @@ originally developed and verified on **v1.6.1, kernel 6.12.25** (2026-05-08).
 > | `CONFIG_IPV6_MULTIPLE_TABLES` | ❌ not set → IPv6 tunneling off | ✅ `=y` |
 > | `CONFIG_IPV6_SUBTREES` | ❌ not present | ✅ `=y` |
 > | `CONFIG_NETFILTER_XT_TARGET_MARK` | ❌ not set | ✅ `=m` |
-> | `CONFIG_IP6_NF_TARGET_MASQUERADE` | ❌ not set | ❌ still not set — **irrelevant**: since Linux 5.2 it is only a backwards-compat alias that selects `CONFIG_NETFILTER_XT_TARGET_MASQUERADE`, and that one is `=y` (`net/ipv6/netfilter/Kconfig`) |
+> | `CONFIG_IP6_NF_TARGET_MASQUERADE` | ❌ not set | ❌ still not set — **and it does not matter**: since Linux 5.2 it is only a backwards-compat alias that selects `CONFIG_NETFILTER_XT_TARGET_MASQUERADE` (`net/ipv6/netfilter/Kconfig`), and that one is `=y`. IPv6 masquerading was tested functionally, see below |
 > | `CONFIG_IP_MULTIPLE_TABLES`, `CONFIG_NETFILTER_XT_MARK`, `CONFIG_NETFILTER_XT_MATCH_MARK`, `CONFIG_IP6_NF_IPTABLES/FILTER/MANGLE/NAT` | ✅ enabled | ✅ enabled |
 >
 > **Measured on v1.7.0, not inferred:**
@@ -65,6 +65,12 @@ originally developed and verified on **v1.6.1, kernel 6.12.25** (2026-05-08).
 > - `ip -6 rule` shows Tailscale's `fwmark 0x80000/0xff0000` rules plus its own routing table
 > - real payload over IPv6, not just a status flag: `curl -6 'http://[fd7a:115c:a1e0::…]/'` → **HTTP 200**
 >   from two tailnet peers, and an SSH banner over a raw IPv6 TCP connection
+> - **IPv6 masquerading (subnet router) works too:** `tailscaled` has already installed
+>   `-A ts-postrouting -m mark --mark 0x40000/0xff0000 -j MASQUERADE` in the live ip6tables `nat`
+>   table, and adding a MASQUERADE rule by hand succeeds on all three front-ends (`ip6tables`,
+>   `-legacy`, `-nft`) while a bogus target is correctly rejected. Note `lsmod` shows no
+>   `xt_MASQUERADE`: the target is **built into** the kernel (`=y`), so the witness is
+>   `grep MASQUERADE /proc/net/ip6_tables_targets`, not the module list.
 >
 > **Don't be confused by `tailscale netcheck`** reporting `IPv6: no, but OS has support`. That line is
 > about the *internet* path (whether your ISP/LAN gives the box a global IPv6 address for direct
