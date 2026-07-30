@@ -21,41 +21,60 @@ This repo packages Tailscale as such an extension. The install layout matches th
 | state | `/var/lib/tailscale` (StateDirectory) | `/DATA/AppData/tailscale/` (ZimaOS-specific) |
 | build | cross-compile via Buildroot Go | upstream static binary |
 
-Verified on **ZimaOS v1.6.1, kernel 6.12.25, ZimaCube** (2026-05-08).
+Verified on **ZimaOS v1.7.0, kernel 6.18.9, ZimaCube** with Tailscale 1.98.10 (2026-07-30);
+originally developed and verified on **v1.6.1, kernel 6.12.25** (2026-05-08).
 
 ---
 
 ## Requirements
 
 - ZimaOS x86_64 (for ARM boards set `ARCH=arm64`)
-- Kernel has `TUN`, `NF_TABLES`, `NF_NAT`, `NF_CONNTRACK`, `NETFILTER` (all present on v1.6.1)
+- Kernel has `TUN`, `NF_TABLES`, `NF_NAT`, `NF_CONNTRACK`, `NETFILTER` (all present on v1.6.1 and v1.7.0)
 - root / sudo access for `/var/lib/extensions/`
 - internet access for the Tailscale tarball
 
-> ### ⚠ Known IPv6 limitation (ZimaOS kernel issue, not this module)
+> ### ✅ IPv6 inside the tailnet works — as of ZimaOS v1.7.0
 >
-> ZimaOS's kernel image has a handful of `CONFIG_*` flags disabled that Tailscale needs for full IPv6 functionality. **Sysext cannot fix this** — these flags have to be set in the kernel before it is compiled.
->
-> **Concrete effect:** Tailscale auto-disables tunneled IPv6 and logs:
+> Up to and including **ZimaOS v1.6.1** (kernel 6.12.25) the ZimaOS kernel image lacked the `CONFIG_*`
+> flags Tailscale needs for IPv6 policy routing, so `tailscaled` switched tunneled IPv6 off at startup:
 >
 > ```
 > router: disabling tunneled IPv6 due to system IPv6 config:
 >   kernel doesn't support IPv6 policy routing
 > ```
 >
-> Mesh VPN over IPv4, IPv4 subnet-router and IPv4 exit-node work **without any restriction**. Only IPv6 connectivity inside the tailnet is off.
+> **The 6.18 kernel ships those flags** — first seen in v1.6.2-beta2, and in the current stable
+> **v1.7.0 (kernel 6.18.9)**. What decides it is the kernel image, not the ZimaOS version number —
+> check yours with `uname -r`: `6.12.25` → IPv6 off, `6.18.9` → IPv6 on (or just run `install.sh`,
+> which audits the flags on your host and says so). Nothing in this module had to change — the
+> limitation was always in the kernel image. Re-audited on a ZimaCube with Tailscale 1.98.10, 2026-07-30:
 >
-> **Audit on ZimaOS v1.6.1 / kernel 6.12.25:**
->
-> | Config | Status | Effect when missing |
+> | Config | v1.6.1 / 6.12.25 | v1.7.0 / 6.18.9 |
 > |---|---|---|
-> | `CONFIG_IPV6_MULTIPLE_TABLES` | ❌ not set | 🔴 IPv6 tunneling disabled entirely |
-> | `CONFIG_IPV6_SUBTREES` | ❌ not present | 🟡 no source-prefix routes |
-> | `CONFIG_NETFILTER_XT_TARGET_MARK` | ❌ not set | 🟡 no iptables `-j MARK` |
-> | `CONFIG_IP6_NF_TARGET_MASQUERADE` | ❌ not set | 🟡 no IPv6 subnet-router masquerading |
-> | `CONFIG_IP_MULTIPLE_TABLES`, `CONFIG_NETFILTER_XT_MARK`, `CONFIG_NETFILTER_XT_MATCH_MARK`, `CONFIG_IP6_NF_IPTABLES/FILTER/MANGLE` | ✅ enabled | – |
+> | `CONFIG_IPV6_MULTIPLE_TABLES` | ❌ not set → IPv6 tunneling off | ✅ `=y` |
+> | `CONFIG_IPV6_SUBTREES` | ❌ not present | ✅ `=y` |
+> | `CONFIG_NETFILTER_XT_TARGET_MARK` | ❌ not set | ✅ `=m` |
+> | `CONFIG_IP6_NF_TARGET_MASQUERADE` | ❌ not set | ❌ still not set — **irrelevant**: since Linux 5.2 it is only a backwards-compat alias that selects `CONFIG_NETFILTER_XT_TARGET_MASQUERADE`, and that one is `=y` (`net/ipv6/netfilter/Kconfig`) |
+> | `CONFIG_IP_MULTIPLE_TABLES`, `CONFIG_NETFILTER_XT_MARK`, `CONFIG_NETFILTER_XT_MATCH_MARK`, `CONFIG_IP6_NF_IPTABLES/FILTER/MANGLE/NAT` | ✅ enabled | ✅ enabled |
 >
-> **What you can do:** File the kernel config request with IceWhale — template under [`mod-store/ICEWHALE_KERNEL_REQUEST.md`](mod-store/ICEWHALE_KERNEL_REQUEST.md). The more 👍 the issue gets, the better the odds.
+> **Measured on v1.7.0, not inferred:**
+>
+> - `journalctl -u tailscaled | grep -c 'disabling tunneled'` → **0** (was the tell-tale line before)
+> - `router: netfilter running in iptables mode v6 = true, v6filter = true, v6nat = true`
+> - `tailscale ip -6` → `fd7a:115c:a1e0::…`, and that address is actually on `tailscale0`
+> - `ip -6 rule` shows Tailscale's `fwmark 0x80000/0xff0000` rules plus its own routing table
+> - real payload over IPv6, not just a status flag: `curl -6 'http://[fd7a:115c:a1e0::…]/'` → **HTTP 200**
+>   from two tailnet peers, and an SSH banner over a raw IPv6 TCP connection
+>
+> **Don't be confused by `tailscale netcheck`** reporting `IPv6: no, but OS has support`. That line is
+> about the *internet* path (whether your ISP/LAN gives the box a global IPv6 address for direct
+> endpoints and IPv6 DERP) — not about the kernel. Tailnet IPv6 (`fd7a::/48`) works either way; the
+> encrypted packets simply travel over the IPv4 underlay.
+>
+> **Still on kernel 6.12.25 (v1.6.1)?** Upgrade ZimaOS — that is the whole fix; a sysext cannot
+> patch a kernel image.
+> The original feature request that described the gap is kept for the record under
+> [`mod-store/ICEWHALE_KERNEL_REQUEST.md`](mod-store/ICEWHALE_KERNEL_REQUEST.md).
 
 ---
 
@@ -75,12 +94,14 @@ The installer
 4. installs to `/var/lib/extensions/`,
 5. enables `tailscaled.service`.
 
-### Via curl (once the repo is public)
+### Via curl
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/<YOU>/zimaos-tailscale-sysext/main/install.sh \
-  | sudo REPO_RAW=https://raw.githubusercontent.com/<YOU>/zimaos-tailscale-sysext/main bash
+curl -fsSL https://raw.githubusercontent.com/chicohaager/zimaos-tailscale-sysext/main/install.sh \
+  | sudo bash
 ```
+
+(`REPO_RAW` only needs to be set if you run a fork: `sudo REPO_RAW=https://raw.githubusercontent.com/<you>/zimaos-tailscale-sysext/main bash`.)
 
 ---
 
@@ -181,11 +202,13 @@ sudo ./uninstall.sh --purge    # also wipe /DATA/AppData/tailscale/
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `systemd-sysext refresh` → `Invalid argument` | `.raw` compressed with zstd (kernel has no SQUASHFS_ZSTD) | use `mksquashfs … -comp gzip` (build.sh does this) |
+| `systemd-sysext refresh` → `Invalid argument` | `.raw` compressed with zstd (kernel has no SQUASHFS_ZSTD — the case on v1.6.1; v1.7.0 does have it, but `build.sh` stays on gzip so one `.raw` works on both) | use `mksquashfs … -comp gzip` (build.sh does this) |
 | `tailscaled.service` `inactive (dead)` after a reboot — no log, no error | sysext merged after `multi-user.target` was assembled (see [Boot-order workaround](#boot-order-workaround)) | the bundled watchdog handles this — make sure it is enabled: `sudo systemctl enable --now tailscaled-watchdog.timer` |
 | `tailscaled.service inactive`, but Tailscale appears to be running | Parallel `tailscale/tailscale` Docker container | `docker stop tailscale && docker update --restart=no tailscale` |
 | Service starts, `BackendState=NeedsLogin` | normal after first install | `sudo tailscale up` |
 | Subnet-router routes don't work | IP forwarding not enabled | see "IP forwarding" above |
+| `tailscale netcheck` → `IPv6: no, but OS has support` | no global IPv6 from your ISP/LAN — this is *not* the old kernel issue | nothing to fix on the ZimaOS side; tailnet IPv6 (`fd7a::/48`) works regardless, over the IPv4 underlay |
+| `router: disabling tunneled IPv6 due to system IPv6 config` in the journal | kernel without `CONFIG_IPV6_MULTIPLE_TABLES` — i.e. 6.12.25 / ZimaOS v1.6.1 | upgrade ZimaOS to a build with kernel 6.18.9 (v1.7.0); a sysext cannot patch the kernel image |
 
 Logs:
 

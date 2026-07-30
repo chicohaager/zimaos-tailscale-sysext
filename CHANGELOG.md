@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.0.2 — 2026-07-30
+
+IPv6 inside the tailnet now works — the ZimaOS kernel caught up.
+
+- **Kernel 6.18.9** (ZimaOS v1.6.2-beta2 and later, including stable **v1.7.0**) enables `CONFIG_IPV6_MULTIPLE_TABLES=y`, `CONFIG_IPV6_SUBTREES=y` and `CONFIG_NETFILTER_XT_TARGET_MARK=m` — the flags that were missing on v1.6.1 / kernel 6.12.25. `tailscaled` no longer logs `router: disabling tunneled IPv6 …`; it reports `netfilter running in iptables mode v6 = true, v6filter = true, v6nat = true` and the node gets its `fd7a:115c:a1e0::…` address. Verified with real traffic (`curl -6` → HTTP 200 from two tailnet peers, SSH banner over a raw IPv6 TCP connection) on a ZimaCube with Tailscale 1.98.10.
+- `install.sh`: the IPv6 capability audit no longer raises a false alarm for `CONFIG_IP6_NF_TARGET_MASQUERADE`. Since Linux 5.2 that symbol is a pure backwards-compat alias that selects `CONFIG_NETFILTER_XT_TARGET_MASQUERADE` (`net/ipv6/netfilter/Kconfig`); the audit now accepts either name. It also prints a positive line when the kernel is complete, and points at a ZimaOS upgrade instead of asking users to file the (now resolved) kernel feature request.
+- README / HOWTO: the "Known IPv6 limitation" warning became a "works as of v1.7.0" section with the per-version config audit, plus two troubleshooting rows — one for the old `disabling tunneled IPv6` log line, one for `tailscale netcheck` reporting `IPv6: no, but OS has support`, which is about the ISP/LAN having no global IPv6 and *not* about the kernel.
+- `mod-store/ICEWHALE_KERNEL_REQUEST.md` marked resolved (kept for the record).
+- Note: ZimaOS v1.7.0 also ships `CONFIG_SQUASHFS_ZSTD=y`, but `build.sh` stays on gzip so one `.raw` keeps working on v1.6.x too.
+
 ## v1.0.1 — 2026-05-20
 
 Fix: `tailscaled` did not start after a reboot.
