@@ -2,6 +2,10 @@
 
 **Tailscale as a native `systemd-sysext` extension for ZimaOS.** No Docker container — the Tailscale daemon runs directly on the host with real TUN, full subnet-router/exit-node support, and boot persistence.
 
+> 📖 Looking for the practical walkthrough? [**HOWTO.md**](HOWTO.md) covers authentication pitfalls,
+> the ZimaOS WebUI over HTTPS via `tailscale serve`, and a Taildrop auto-receiver. This README
+> covers the module itself.
+
 ---
 
 ## What this is (and why)
