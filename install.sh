@@ -37,10 +37,6 @@ for t in mksquashfs curl tar systemctl systemd-sysext; do
   command -v "$t" >/dev/null || { echo "✗ missing tool: $t" >&2; exit 1; }
 done
 
-# Kernel: gzip squashfs support
-zcat /proc/config.gz 2>/dev/null | grep -q '^CONFIG_SQUASHFS_ZLIB=y' \
-  || echo "⚠ kernel SQUASHFS_ZLIB not detected — gzip mount may fail"
-
 # IPv6 capability audit (informational — sysext can't fix kernel configs).
 # Kernel 6.18.9 (ZimaOS v1.6.2-beta2 and later, incl. stable v1.7.0) enables all of
 # these; kernel 6.12.25 (v1.6.1) did not.
@@ -54,6 +50,12 @@ elif [[ -r "/boot/config-$(uname -r)" ]]; then
 fi
 
 if [[ -n "$KCFG" ]]; then
+  # Kernel: gzip squashfs support. Checked against the captured config, not through
+  # a pipe — `zcat … | grep -q` can lose the race and die of SIGPIPE, which under
+  # `set -o pipefail` turns a *present* flag into a bogus "not detected" warning.
+  grep -qE '^CONFIG_SQUASHFS_ZLIB=y' <<<"$KCFG" \
+    || echo "⚠ kernel SQUASHFS_ZLIB not detected — gzip mount may fail"
+
   IPV6_MISSING=()
   # Each entry: <CONFIG_NAME>[,<EQUIVALENT_NAME>…]|<purpose>
   # An entry counts as satisfied if ANY of its names is =y or =m. Second names are
@@ -129,8 +131,14 @@ if pgrep -x tailscaled >/dev/null; then
   [[ "$ans" =~ ^[Yy]$ ]] || { echo "aborted"; exit 0; }
 fi
 
-# Existing docker container?
-if command -v docker >/dev/null && DOCKER_CONFIG=/DATA/.docker docker ps -a --format '{{.Names}}' 2>/dev/null | grep -qx tailscale; then
+# Existing docker container? Capture the list first: `docker ps | grep -q` under
+# `set -o pipefail` can return 141 when grep exits on the match before docker is
+# done writing — a *found* container would then read as "not there" and stay up.
+DOCKER_NAMES=""
+if command -v docker >/dev/null; then
+  DOCKER_NAMES="$(DOCKER_CONFIG=/DATA/.docker docker ps -a --format '{{.Names}}' 2>/dev/null || true)"
+fi
+if grep -qx tailscale <<<"$DOCKER_NAMES"; then
   echo "⚠ a docker container named 'tailscale' exists. It will be stopped (not removed)."
   DOCKER_CONFIG=/DATA/.docker docker stop tailscale 2>/dev/null || true
   DOCKER_CONFIG=/DATA/.docker docker update --restart=no tailscale 2>/dev/null || true
@@ -181,7 +189,13 @@ install -m 0644 "$UNIT_SRC/tailscaled-watchdog.timer"   /etc/systemd/system/tail
 
 echo "▶ Enabling tailscaled.service + boot-order watchdog"
 systemctl daemon-reload
-systemctl enable --now tailscaled.service
+systemctl enable tailscaled.service
+# `restart` and not `enable --now`: on a re-install (the documented way to update)
+# the unit is already active, so `--now` does nothing and the *running* daemon keeps
+# executing the binary it started with — a new Tailscale version would only take
+# effect at the next reboot. `restart` starts it if it is inactive and swaps it if
+# it is running, at the price of a ~2 s tailnet interruption.
+systemctl restart tailscaled.service
 systemctl enable --now tailscaled-watchdog.timer
 
 # ── Verify ───────────────────────────────────────────────────────────────
@@ -191,7 +205,8 @@ echo "═══ Status ═══"
 systemctl --no-pager status tailscaled.service | sed -n '1,8p' || true
 echo ""
 
-if /usr/bin/tailscale status --json 2>/dev/null | grep -q '"BackendState": *"NeedsLogin"'; then
+TS_JSON="$(/usr/bin/tailscale status --json 2>/dev/null || true)"
+if grep -q '"BackendState": *"NeedsLogin"' <<<"$TS_JSON"; then
   echo ""
   echo "▶ Tailscale is installed but not yet authenticated. Next step:"
   echo ""
@@ -200,7 +215,10 @@ if /usr/bin/tailscale status --json 2>/dev/null | grep -q '"BackendState": *"Nee
   echo "  (then open the printed login URL in your browser)"
 elif /usr/bin/tailscale status >/dev/null 2>&1; then
   echo "✓ Tailscale is up and connected:"
-  /usr/bin/tailscale status | head -5
+  # `sed -n 1,5p` and not `head -5`: head exits after 5 lines, `tailscale status`
+  # dies of SIGPIPE, and `set -o pipefail` then aborts the installer with exit 141
+  # right before the final message — a successful install reporting failure.
+  /usr/bin/tailscale status | sed -n '1,5p'
 else
   echo "⚠ tailscaled started but status check inconclusive — see 'journalctl -u tailscaled' for details"
 fi
