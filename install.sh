@@ -110,7 +110,22 @@ if pgrep -x tailscaled >/dev/null; then
   echo "⚠ a tailscaled process is already running:"
   pgrep -af 'tailscaled' || true
   echo "  This installer will replace it with the systemd-managed sysext daemon."
-  read -r -p "  Continue? [y/N] " ans
+  # Never read the answer from stdin blindly: in the documented piped install
+  # (`curl … | sudo bash`) stdin carries the *script*, so a bare `read` would
+  # swallow the next line of install.sh and use it as the answer. Ask the
+  # terminal directly, and if there is none (piped, cron, ssh without a tty),
+  # say so and continue — re-running the installer to update is a normal case,
+  # and the daemon it replaces is the one it installed.
+  ans=""
+  if [[ -t 0 ]]; then
+    read -r -p "  Continue? [y/N] " ans
+  elif { : </dev/tty; } 2>/dev/null; then
+    printf '  Continue? [y/N] '
+    read -r ans </dev/tty
+  else
+    echo "  (no terminal available for a prompt — continuing)"
+    ans=y
+  fi
   [[ "$ans" =~ ^[Yy]$ ]] || { echo "aborted"; exit 0; }
 fi
 
