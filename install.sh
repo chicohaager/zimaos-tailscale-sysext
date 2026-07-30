@@ -42,6 +42,8 @@ zcat /proc/config.gz 2>/dev/null | grep -q '^CONFIG_SQUASHFS_ZLIB=y' \
   || echo "⚠ kernel SQUASHFS_ZLIB not detected — gzip mount may fail"
 
 # IPv6 capability audit (informational — sysext can't fix kernel configs).
+# Kernel 6.18.9 (ZimaOS v1.6.2-beta2 and later, incl. stable v1.7.0) enables all of
+# these; kernel 6.12.25 (v1.6.1) did not.
 # We capture the kernel config once and run pure-bash checks (no pipe-in-if,
 # which can interact subtly with `set -o pipefail`).
 KCFG=""
@@ -53,17 +55,26 @@ fi
 
 if [[ -n "$KCFG" ]]; then
   IPV6_MISSING=()
-  # Each line: <CONFIG_NAME>|<purpose>
+  # Each entry: <CONFIG_NAME>[,<EQUIVALENT_NAME>…]|<purpose>
+  # An entry counts as satisfied if ANY of its names is =y or =m. Second names are
+  # kernel-side equivalents, not nice-to-haves: CONFIG_IP6_NF_TARGET_MASQUERADE has
+  # been a pure backwards-compat alias since Linux 5.2 that just selects
+  # CONFIG_NETFILTER_XT_TARGET_MASQUERADE (see net/ipv6/netfilter/Kconfig), so
+  # checking only the old name reports a missing feature that is actually present.
   for entry in \
       "CONFIG_IPV6_MULTIPLE_TABLES|🔴 hard blocker — Tailscale auto-disables IPv6 tunneling without it" \
       "CONFIG_IPV6_SUBTREES|🟡 source-prefix IPv6 routes" \
-      "CONFIG_NETFILTER_XT_TARGET_MARK|🟡 iptables -j MARK target (Tailscale falls back to nft mode)" \
-      "CONFIG_IP6_NF_TARGET_MASQUERADE|🟡 IPv6 subnet-router masquerading" ; do
-    name="${entry%%|*}"
+      "CONFIG_NETFILTER_XT_TARGET_MARK|🟡 iptables -j MARK target — tags tunneled packets" \
+      "CONFIG_NETFILTER_XT_TARGET_MASQUERADE,CONFIG_IP6_NF_TARGET_MASQUERADE|🟡 IPv6 subnet-router masquerading" ; do
+    names="${entry%%|*}"
     purpose="${entry#*|}"
     # Treat both "# … is not set" and "absent entirely" as missing.
-    if ! grep -qE "^${name}=[ym]\b" <<<"$KCFG"; then
-      IPV6_MISSING+=("    • ${name}  ${purpose}")
+    found=0
+    for name in ${names//,/ }; do
+      if grep -qE "^${name}=[ym]$" <<<"$KCFG"; then found=1; break; fi
+    done
+    if (( ! found )); then
+      IPV6_MISSING+=("    • ${names//,/ or }  ${purpose}")
     fi
   done
 
@@ -77,16 +88,17 @@ if [[ -n "$KCFG" ]]; then
     echo "      'router: disabling tunneled IPv6 due to system IPv6 config'"
     echo "    and run IPv4-only inside the tailnet."
     echo ""
-    echo "    👉 This is a ZimaOS kernel-image issue, NOT a bug in this module."
-    echo "       The kernel must be rebuilt by IceWhale with these flags enabled."
+    echo "    👉 This is a ZimaOS kernel-image issue, NOT a bug in this module —"
+    echo "       a sysext cannot patch a kernel image."
     echo ""
-    echo "    📝 Action: please file the included feature request against"
-    echo "       https://github.com/IceWhaleTech/ZimaOS/issues — ready-to-paste"
-    echo "       body in:  mod-store/ICEWHALE_KERNEL_REQUEST.md"
-    echo "       (More 👍 on the issue raises the odds of it being prioritized.)"
+    echo "    📝 Fix: upgrade ZimaOS. Kernel 6.18.9 (v1.6.2-beta2 and later, incl."
+    echo "       stable v1.7.0) ships these flags; 6.12.25 (v1.6.1) does not."
+    echo "       Background: mod-store/ICEWHALE_KERNEL_REQUEST.md"
     echo ""
     echo "    Continuing — IPv4 mesh, subnet-router and exit-node work fine."
     echo ""
+  else
+    echo "✓ IPv6 capability audit: all kernel flags present — Tailscale enables tunneled IPv6"
   fi
 fi
 

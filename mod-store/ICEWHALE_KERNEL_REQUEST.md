@@ -1,5 +1,18 @@
 # [Feature Request] Enable IPv6 policy routing & netfilter MARK target in kernel for native VPN clients
 
+> ## ✅ RESOLVED — no need to file this any more
+>
+> **Kernel 6.18.9 ships the requested flags** — first seen in ZimaOS v1.6.2-beta2, and in stable
+> **v1.7.0**. Re-audited on a ZimaCube on
+> 2026-07-30: `CONFIG_IPV6_MULTIPLE_TABLES=y`, `CONFIG_IPV6_SUBTREES=y`,
+> `CONFIG_NETFILTER_XT_TARGET_MARK=m`, `CONFIG_NETFILTER_XT_TARGET_MASQUERADE=y` (the last one is
+> what `CONFIG_IP6_NF_TARGET_MASQUERADE` has merely been an alias for since Linux 5.2, so the row
+> for it below is moot). `tailscaled` 1.98.10 keeps tunneled IPv6 enabled and real IPv6 traffic
+> flows inside the tailnet.
+>
+> This document is kept **for the record only** — it describes the state of ZimaOS **v1.6.1 /
+> kernel 6.12.25**. If your host still runs that kernel (`uname -r`), the fix is a ZimaOS upgrade.
+
 > Related existing issues (for context — this request is scoped to the kernel-config side):
 > - #370 — wireguard kernel module
 > - #485 — Tailscale from app store is in a restart loop
