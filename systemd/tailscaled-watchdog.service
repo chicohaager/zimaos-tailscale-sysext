@@ -12,6 +12,13 @@
 # starts tailscaled on demand.
 #
 # Modeled on the cron.raw workaround — chicohaager/cron, install-watchdog.sh.
+#
+# The reset-failed is not cosmetic. If tailscaled *was* scheduled early on this
+# host and burned its start limit against an unmounted /DATA, the unit sits in
+# failed state with its rate counter exhausted, and a plain `systemctl start`
+# inside the 10s window is refused outright — the watchdog would report success
+# while doing nothing. `systemctl reset-failed` flushes that counter (see
+# StartLimitIntervalSec= in systemd.unit(5)). It is a no-op on a healthy unit.
 
 [Unit]
 Description=Start tailscaled if the sysext unit was missed at boot
@@ -19,4 +26,4 @@ Documentation=https://github.com/chicohaager/zimaos-tailscale-sysext
 
 [Service]
 Type=oneshot
-ExecStart=/bin/sh -c 'systemctl is-active --quiet tailscaled.service || systemctl start tailscaled.service'
+ExecStart=/bin/sh -c 'systemctl is-active --quiet tailscaled.service || { systemctl reset-failed tailscaled.service 2>/dev/null; systemctl start tailscaled.service; }'

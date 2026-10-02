@@ -4,6 +4,27 @@ Documentation=https://tailscale.com/docs/
 Wants=network-pre.target
 After=network-pre.target NetworkManager.service systemd-resolved.service
 
+# The state directory lives under /DATA. On ZimaOS that is not an ordinary
+# directory: /DATA is a bind mount of /var/lib/casaos_data, provided by DATA.mount,
+# which is pulled in by casaos-bind.target — *not* by local-fs.target.
+# WantedBy=multi-user.target does not order this unit after casaos-bind.target
+# (Before=multi-user.target only orders the target, not multi-user's other wants),
+# so tailscaled and DATA.mount race. When tailscaled wins, ExecStartPre's mkdir has
+# to create /DATA/AppData on the root filesystem — which is read-only squashfs on
+# ZimaOS — and fails with "Read-only file system", killing the unit instantly.
+# RequiresMountsFor adds Requires= + After= for the mount unit covering the path
+# (verified on ZimaOS v1.7.0: /DATA/AppData resolves to DATA.mount).
+RequiresMountsFor=/DATA/AppData
+
+# Never latch into a permanent failure. The default RestartSec is 100ms and the
+# default start limit is 5 starts per 10s, so five instant failures — exactly what
+# the race above produces — burn the whole allowance inside half a second. systemd
+# then refuses to try again ("Start request repeated too quickly", Result:
+# exit-code) and the daemon stays dead for the rest of the boot, even though the
+# cause clears seconds later. With rate limiting off and RestartSec=5, the unit
+# keeps retrying until /DATA is there and heals itself.
+StartLimitIntervalSec=0
+
 [Service]
 EnvironmentFile=-/etc/default/tailscaled
 Environment=PORT=41641
@@ -13,6 +34,7 @@ ExecStartPre=-/usr/sbin/tailscaled --cleanup
 ExecStart=/usr/sbin/tailscaled --state=/DATA/AppData/tailscale/tailscaled.state --socket=/run/tailscale/tailscaled.sock --port=${PORT} $FLAGS
 ExecStopPost=/usr/sbin/tailscaled --cleanup
 Restart=on-failure
+RestartSec=5
 RuntimeDirectory=tailscale
 RuntimeDirectoryMode=0755
 Type=notify
