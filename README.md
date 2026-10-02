@@ -226,6 +226,44 @@ There is no earlier attempt to start `tailscaled` in that boot: systemd never sc
 in-sysext unit itself, the watchdog did. Tailnet IPv6 was carrying traffic again right after
 (`curl -6` → HTTP 200 from two peers), and no `disabling tunneled IPv6` line appeared.
 
+### The second failure mode: it *does* start, and crashes into the start limit
+
+The race above is not the only way this boot goes wrong, and on some hosts it goes the
+other way — reported by a user in 2026-08, fixed in **v1.0.3**. If the sysext *is* merged
+in time, systemd schedules `tailscaled.service` from `multi-user.target` right away, and
+then a second race decides the outcome:
+
+- The state directory is `/DATA/AppData/tailscale`. On ZimaOS `/DATA` is **not** an
+  ordinary directory — it is a bind mount of `/var/lib/casaos_data`, provided by
+  `DATA.mount` and pulled in by `casaos-bind.target`, *not* by `local-fs.target`.
+- `casaos-bind.target` declares `Before=multi-user.target`. That orders it before the
+  **target**, but not before the target's other `Wants=` — so `tailscaled.service` and
+  `DATA.mount` are free to run concurrently.
+- The root filesystem is **read-only squashfs** (`/dev/nvme0n1p5`). So when `tailscaled`
+  wins that race, `ExecStartPre=/bin/mkdir -p /DATA/AppData/tailscale` cannot fall back to
+  creating the directory on the root — it fails with `Read-only file system`, and the unit
+  dies before the daemon is ever exec'd.
+- `Restart=on-failure` retried after the default `RestartSec=100ms`, and the default start
+  limit is 5 starts per 10 s. Five instant failures therefore burned the entire allowance
+  in about half a second, systemd gave up with **`Start request repeated too quickly`**, and
+  the unit stayed `failed (Result: exit-code)` for the rest of the boot — while a manual
+  `systemctl start` minutes later succeeded, because by then `/DATA` was mounted.
+- The watchdog could not save it either: a plain `systemctl start` against a unit whose rate
+  counter is spent is *refused*, so the watchdog reported success while doing nothing.
+
+Three changes fix it, all in this repo:
+
+| Change | Where | Effect |
+|---|---|---|
+| `RequiresMountsFor=/DATA/AppData` | `tailscaled.service` `[Unit]` | adds `Requires=` + `After=` for `DATA.mount`, so the daemon cannot start before its state directory exists |
+| `StartLimitIntervalSec=0` + `RestartSec=5` | `tailscaled.service` | a transient early-boot failure can no longer latch permanently; the unit retries every 5 s until the cause clears |
+| `systemctl reset-failed` before `start` | `tailscaled-watchdog.service` | flushes a spent rate counter so the watchdog can actually recover an already-failed unit |
+
+`RequiresMountsFor` resolving to the right mount unit was verified on the ZimaOS v1.7.0 host:
+`systemd-journal-flush.service`, which declares `RequiresMountsFor=/var/log/journal`, shows
+`var-log.mount` in its resolved `After=` — the same mechanism `/DATA/AppData` → `DATA.mount`
+relies on.
+
 ---
 
 ## Uninstall
@@ -243,6 +281,7 @@ sudo ./uninstall.sh --purge    # also wipe /DATA/AppData/tailscale/
 |---|---|---|
 | `systemd-sysext refresh` → `Invalid argument` | `.raw` compressed with zstd (kernel has no SQUASHFS_ZSTD — the case on v1.6.1; v1.7.0 does have it, but `build.sh` stays on gzip so one `.raw` works on both) | use `mksquashfs … -comp gzip` (build.sh does this) |
 | `tailscaled.service` `inactive (dead)` after a reboot — no log, no error | sysext merged after `multi-user.target` was assembled (see [Boot-order workaround](#boot-order-workaround)) | the bundled watchdog handles this — make sure it is enabled: `sudo systemctl enable --now tailscaled-watchdog.timer` |
+| After a reboot: `failed (Result: exit-code)`, journal shows ~5 rapid starts then `Start request repeated too quickly` — but a manual `sudo systemctl start tailscaled` later works | `tailscaled` started before `/DATA` was mounted, so `ExecStartPre`'s `mkdir` hit the read-only squashfs root and the unit died instantly; five failures in half a second exhausted the default start limit (5 per 10 s) and systemd stopped retrying. Fixed in **v1.0.3** — see [Boot-order workaround](#boot-order-workaround) | update: `git pull && sudo ./install.sh`. To confirm it was this before updating: `journalctl -b -u tailscaled \| head -40` — look for `Read-only file system` or `mkdir` failing. To recover the current boot without rebooting: `sudo systemctl reset-failed tailscaled && sudo systemctl start tailscaled` |
 | `tailscaled.service inactive`, but Tailscale appears to be running | Parallel `tailscale/tailscale` Docker container | `docker stop tailscale && docker update --restart=no tailscale` |
 | Service starts, `BackendState=NeedsLogin` | normal after first install | `sudo tailscale up` |
 | Subnet-router routes don't work | IP forwarding not enabled | see "IP forwarding" above |

@@ -1,5 +1,55 @@
 # Changelog
 
+## v1.0.3 — 2026-08-01
+
+Fix: on some hosts `tailscaled` crashed five times at boot and stayed `failed`.
+
+Reported by a user who saw the opposite of the v1.0.1 symptom: not a daemon that was never
+scheduled, but one that *was* scheduled, crashed rapidly, hit systemd's start rate limit
+(`Start request repeated too quickly`) and stayed `failed (Result: exit-code)` — while a
+manual `sudo systemctl start tailscaled` minutes later worked every time.
+
+- **Root cause — a second boot race, this one over `/DATA`.** The state directory is
+  `/DATA/AppData/tailscale`, and on ZimaOS `/DATA` is a bind mount of `/var/lib/casaos_data`
+  provided by `DATA.mount`, which is pulled in by `casaos-bind.target` — *not* by
+  `local-fs.target`. `casaos-bind.target` is `Before=multi-user.target`, which orders it
+  before the **target** but not before the target's other `Wants=`, so `tailscaled.service`
+  and `DATA.mount` ran concurrently. The root filesystem is read-only squashfs, so when
+  `tailscaled` won the race `ExecStartPre=/bin/mkdir -p /DATA/AppData/tailscale` could not
+  fall back to the root — it failed with `Read-only file system` and the unit died before
+  the daemon was exec'd. Measured on ZimaOS v1.7.0: `/` is `/dev/nvme0n1p5 squashfs ro`
+  (positive control: `mkdir -p /zz-ro-probe` → `Read-only file system`), and
+  `systemctl show tailscaled.service -p RequiresMountsFor` returned only `/run/tailscale`
+  — the unit declared no dependency on `/DATA` at all.
+- **Why it latched instead of recovering.** `Restart=on-failure` with the default
+  `RestartSec=100ms` against the default start limit of 5 starts per 10 s (measured on the
+  host: `DefaultStartLimitIntervalUSec=10s`, `DefaultStartLimitBurst=5`) means five instant
+  failures exhaust the whole allowance in ~0.5 s. systemd then refuses to try again for the
+  rest of the boot — which is exactly why a manual start later succeeds: by then `/DATA` is
+  mounted *and* the rate-limit interval has passed (`systemd.unit(5)`, `StartLimitIntervalSec=`).
+- **`tailscaled.service`:** added `RequiresMountsFor=/DATA/AppData`, which adds `Requires=`
+  and `After=` for the mount unit covering that path. Verified on the host that this
+  resolves as intended — `systemd-journal-flush.service` declares
+  `RequiresMountsFor=/var/log/journal` and shows `var-log.mount` in its resolved `After=`.
+- **`tailscaled.service`:** added `StartLimitIntervalSec=0` and `RestartSec=5`, so a
+  transient early-boot failure can never latch permanently again; the unit retries every
+  5 s until the cause clears, and logs loudly while it does.
+- **`tailscaled-watchdog.service`:** now runs `systemctl reset-failed tailscaled.service`
+  before `systemctl start`. Without it the watchdog was powerless against precisely this
+  bug — a `start` against a unit with a spent rate counter is refused, so the watchdog
+  reported success while doing nothing. No-op on a healthy unit.
+- **`install.sh`:** `reset-failed` before the `systemctl restart`, so installing *onto* an
+  already-affected host cannot abort under `set -e` with `Start request repeated too quickly`.
+- README: new troubleshooting row for the exact symptom (including how to confirm it from
+  the journal and how to recover the current boot without rebooting), and a
+  "second failure mode" section under Boot-order workaround.
+
+Not verified: this was diagnosed from the shipped units plus measurements on a ZimaOS v1.7.0
+host, **not** reproduced on the reporter's machine — their journal is the only thing that can
+confirm `mkdir`/`Read-only file system` was their specific trigger. The two defects fixed here
+(no mount ordering, and a start limit that latches with no way back) are real and measurable
+regardless of which of them fired first on that host.
+
 ## v1.0.2 — 2026-07-30
 
 IPv6 inside the tailnet now works — the ZimaOS kernel caught up.

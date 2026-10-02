@@ -195,6 +195,14 @@ systemctl enable tailscaled.service
 # executing the binary it started with — a new Tailscale version would only take
 # effect at the next reboot. `restart` starts it if it is inactive and swaps it if
 # it is running, at the price of a ~2 s tailnet interruption.
+#
+# reset-failed first: on a host affected by the boot race (tailscaled started
+# before /DATA was mounted, failed five times in half a second and exhausted its
+# start limit) the unit sits in failed state with its rate counter spent, and
+# `restart` inside the 10s window is refused with "Start request repeated too
+# quickly" — the install would abort under `set -e` on an otherwise fine system.
+# No-op on a healthy unit.
+systemctl reset-failed tailscaled.service 2>/dev/null || true
 systemctl restart tailscaled.service
 systemctl enable --now tailscaled-watchdog.timer
 
