@@ -115,6 +115,22 @@ The installer
 4. installs to `/var/lib/extensions/`,
 5. enables `tailscaled.service`.
 
+### Alternative: the Lintux installer (prebuilt, no build on the box)
+
+From v1.0.4 every release ships prebuilt images (`tailscale-amd64.raw`,
+`tailscale-arm64.raw`, each with a `.sha256`). The
+[lintux-modkit](https://github.com/chicohaager/lintux-modkit) installer fetches the one for
+your CPU, checks its sha256 and runs this repo's `install.sh` from the same tag with
+`TAILSCALE_RAW=<image>` — no `mksquashfs`, no build on the host:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/chicohaager/lintux-modkit/main/install.sh -o /tmp/lintux-install.sh
+sudo bash /tmp/lintux-install.sh --install tailscale
+```
+
+Run it from the LAN: restarting `tailscaled` cuts an SSH session that comes in over the
+tailnet, so the installer leaves Tailscale alone while one is open (`--force` overrides).
+
 ### Alternative: via curl (no checkout)
 
 ```bash
@@ -195,6 +211,8 @@ sudo sysctl --system
 - `/var/lib/extensions/tailscale.raw` is persistent despite the `/var` prefix — it's a bind-mount from `/var/lib/casaos_data/.extensions/` on the ext4 partition.
 - Auth state lives under `/DATA/AppData/tailscale/`.
 - After a ZimaOS upgrade just re-run `install.sh` (or rebuild and copy the `.raw`). Auth state survives.
+- The module version sits in the image as `SYSEXT_VERSION_ID` (from v1.0.4, with the bundled Tailscale as `TAILSCALE_VERSION`): `cat /usr/lib/extension-release.d/extension-release.tailscale`.
+- Re-running `install.sh` over the running `tailscaled.service` no longer asks — it is an update, not a conflict. It still asks before replacing any other `tailscaled`.
 - After reboot `systemd-sysext.service` re-merges the extension and the bundled `tailscaled-watchdog.timer` starts `tailscaled` — see [Boot-order workaround](#boot-order-workaround).
 
 ---
