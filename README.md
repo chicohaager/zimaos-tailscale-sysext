@@ -115,13 +115,15 @@ The installer
 4. installs to `/var/lib/extensions/`,
 5. enables `tailscaled.service`.
 
-### Alternative: the Lintux installer (prebuilt, no build on the box)
+### Alternative: the Lintux installer (always the newest Tailscale)
 
-From v1.0.4 every release ships prebuilt images (`tailscale-amd64.raw`,
-`tailscale-arm64.raw`, each with a `.sha256`). The
-[lintux-modkit](https://github.com/chicohaager/lintux-modkit) installer fetches the one for
-your CPU, checks its sha256 and runs this repo's `install.sh` from the same tag with
-`TAILSCALE_RAW=<image>` — no `mksquashfs`, no build on the host:
+The [lintux-modkit](https://github.com/chicohaager/lintux-modkit) installer takes this
+module from its latest release and builds the image on the host with the newest stable
+Tailscale from `pkgs.tailscale.com` — so Tailscale stays current without a new release of
+this repo. A later run reports a newer Tailscale and applies it on `--install tailscale`.
+From v1.0.4 every release also ships prebuilt images (`tailscale-amd64.raw`,
+`tailscale-arm64.raw`, each with a `.sha256`); the installer falls back to the one for your
+CPU (`TAILSCALE_RAW=<image>`) when it cannot build:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/chicohaager/lintux-modkit/main/install.sh -o /tmp/lintux-install.sh
