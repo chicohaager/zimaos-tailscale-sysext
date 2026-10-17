@@ -14,6 +14,10 @@
 #   3. Installs to /var/lib/extensions/ (persistent bind-mount)
 #   4. Refreshes systemd-sysext, enables tailscaled.service
 #   5. Prints `tailscale up` instructions
+#
+# TAILSCALE_RAW=/path/to/tailscale-<arch>.raw skips step 2 and installs that
+# prebuilt image (a release asset) — that is how the lintux-modkit installer
+# uses this script, from the source archive of the same release tag.
 
 set -euo pipefail
 
@@ -21,7 +25,11 @@ set -euo pipefail
 
 REPO_RAW="${REPO_RAW:-https://raw.githubusercontent.com/chicohaager/zimaos-tailscale-sysext/main}"
 TAILSCALE_VERSION="${TAILSCALE_VERSION:-}"   # empty → build.sh resolves latest
-ARCH="${ARCH:-amd64}"
+TAILSCALE_RAW="${TAILSCALE_RAW:-}"           # set → install this image, no build
+case "$(uname -m)" in
+  aarch64|arm64) ARCH="${ARCH:-arm64}" ;;
+  *)             ARCH="${ARCH:-amd64}" ;;
+esac
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd || pwd)"
 
 # ── Sanity checks ────────────────────────────────────────────────────────
@@ -29,11 +37,15 @@ echo "═══ ZimaOS Tailscale-Sysext Installer ═══"
 echo ""
 echo "▶ Host:    $(hostname) ($(uname -m), kernel $(uname -r))"
 [[ -f /etc/os-release ]] && echo "▶ OS:      $(. /etc/os-release; echo "$PRETTY_NAME")"
-[[ "$(uname -m)" = "x86_64" && "$ARCH" = "amd64" ]] || \
-  echo "⚠ Architecture mismatch: kernel=$(uname -m), build target=$ARCH (you may need ARCH=arm64)"
+case "$(uname -m)/$ARCH" in
+  x86_64/amd64|aarch64/arm64|arm64/arm64) ;;
+  *) echo "⚠ Architecture mismatch: kernel=$(uname -m), build target=$ARCH" ;;
+esac
 
-# Tools
-for t in mksquashfs curl tar systemctl systemd-sysext; do
+# Tools — a prebuilt image needs no mksquashfs (and no curl or tar for the build)
+TOOLS="systemctl systemd-sysext"
+[[ -n "$TAILSCALE_RAW" ]] || TOOLS="mksquashfs curl tar $TOOLS"
+for t in $TOOLS; do
   command -v "$t" >/dev/null || { echo "✗ missing tool: $t" >&2; exit 1; }
 done
 
@@ -107,8 +119,14 @@ fi
 # /var/lib/extensions writable & a directory
 [[ -d /var/lib/extensions ]] || { echo "✗ /var/lib/extensions missing" >&2; exit 1; }
 
-# Conflict check: existing tailscale daemons / docker container
-if pgrep -x tailscaled >/dev/null; then
+# Conflict check: existing tailscale daemons / docker container.
+# A daemon that is the MainPID of our own tailscaled.service is not a conflict
+# but an update — no question then, the restart further down swaps it.
+TS_PIDS="$(pgrep -x tailscaled || true)"
+TS_OWN="$(systemctl show -p MainPID --value tailscaled.service 2>/dev/null || true)"
+if [[ -n "$TS_PIDS" && "$TS_PIDS" = "$TS_OWN" ]]; then
+  echo "▶ tailscaled.service (PID $TS_OWN) is running — updating it in place"
+elif [[ -n "$TS_PIDS" ]]; then
   echo "⚠ a tailscaled process is already running:"
   pgrep -af 'tailscaled' || true
   echo "  This installer will replace it with the systemd-managed sysext daemon."
@@ -148,7 +166,13 @@ fi
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
-if [[ -x "$SCRIPT_DIR/build.sh" && -d "$SCRIPT_DIR/systemd" ]]; then
+if [[ -n "$TAILSCALE_RAW" ]]; then
+  [[ -s "$TAILSCALE_RAW" ]] || { echo "✗ TAILSCALE_RAW=$TAILSCALE_RAW is missing or empty" >&2; exit 1; }
+  [[ -d "$SCRIPT_DIR/systemd" ]] || { echo "✗ TAILSCALE_RAW needs the systemd/ directory next to install.sh" >&2; exit 1; }
+  echo "▶ Prebuilt image — $TAILSCALE_RAW"
+  RAW="$TAILSCALE_RAW"
+  UNIT_SRC="$SCRIPT_DIR/systemd"
+elif [[ -x "$SCRIPT_DIR/build.sh" && -d "$SCRIPT_DIR/systemd" ]]; then
   echo "▶ Local checkout detected — building from $SCRIPT_DIR"
   ( cd "$SCRIPT_DIR" && TAILSCALE_VERSION="$TAILSCALE_VERSION" ARCH="$ARCH" ./build.sh )
   RAW="$SCRIPT_DIR/tailscale.raw"
@@ -156,6 +180,7 @@ if [[ -x "$SCRIPT_DIR/build.sh" && -d "$SCRIPT_DIR/systemd" ]]; then
 else
   echo "▶ Fetching build artifacts from $REPO_RAW"
   curl -fsSL "$REPO_RAW/build.sh"                            -o "$WORK/build.sh"
+  curl -fsSL "$REPO_RAW/VERSION"                             -o "$WORK/VERSION"
   mkdir -p "$WORK/systemd"
   curl -fsSL "$REPO_RAW/systemd/tailscaled.service"          -o "$WORK/systemd/tailscaled.service"
   curl -fsSL "$REPO_RAW/systemd/tailscaled-watchdog.service" -o "$WORK/systemd/tailscaled-watchdog.service"

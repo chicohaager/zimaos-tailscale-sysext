@@ -8,3 +8,4 @@ tailscale_*_arm64/
 community/
 mod-store/PR_TEMPLATE.md
 mod-store/entry.json
+dist/

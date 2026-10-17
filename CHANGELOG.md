@@ -1,5 +1,23 @@
 # Changelog
 
+## v1.0.4 — 2026-10-17
+
+Prebuilt release images and a version the host can report.
+
+- **Release assets:** `tailscale-amd64.raw` and `tailscale-arm64.raw` with `.sha256`
+  (`sha256sum -c` format), built by `tools/release-assets.sh` — one Tailscale version for
+  both (1.104.1 in this release).
+- **`install.sh`:** `TAILSCALE_RAW=<image>` installs a prebuilt image instead of building;
+  `mksquashfs`, `curl` and `tar` are then not required. `ARCH` follows `uname -m` (was
+  fixed to `amd64`, so an arm64 box warned about a mismatch and built the wrong image).
+- **`install.sh`:** no prompt when the running `tailscaled` is the MainPID of our own
+  `tailscaled.service` — that is an update. Any other `tailscaled` still asks.
+- **`build.sh`:** writes `SYSEXT_VERSION_ID` (from `./VERSION`, os-release(5)) and
+  `TAILSCALE_VERSION` into `extension-release.tailscale`; `OUT=` picks the output path.
+- Verified on ZimaOS v1.8.0 (amd64): update over a running build from 2026-10-02 (no version marker) with
+  `TAILSCALE_RAW`, no prompt, login state kept (`BackendState` `Running`), extension-release
+  shows `SYSEXT_VERSION_ID=1.0.4`, watchdog timer enabled.
+
 ## v1.0.3 — 2026-08-01
 
 Fix: on some hosts `tailscaled` crashed five times at boot and stayed `failed`.

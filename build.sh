@@ -80,11 +80,21 @@ install -m 0644 "$SCRIPT_DIR/systemd/tailscaled.service" \
 ln -sf ../tailscaled.service \
   "$ROOT/usr/lib/systemd/system/multi-user.target.wants/tailscaled.service"
 
-# Extension-release marker (matches existing ZimaOS sysext convention)
-printf 'ID=_any\n' > "$ROOT/usr/lib/extension-release.d/extension-release.tailscale"
+# Extension-release marker (matches existing ZimaOS sysext convention).
+# SYSEXT_VERSION_ID (os-release(5)) carries the module version from ./VERSION;
+# systemd does not match on it, the lintux-modkit installer reads it from the
+# merged /usr to tell which release a host runs. TAILSCALE_VERSION is ours —
+# systemd ignores keys it does not know.
+{
+  printf 'ID=_any\n'
+  if [[ -r "$SCRIPT_DIR/VERSION" ]]; then
+    printf 'SYSEXT_VERSION_ID=%s\n' "$(tr -d '[:space:]' <"$SCRIPT_DIR/VERSION")"
+  fi
+  printf 'TAILSCALE_VERSION=%s\n' "$TAILSCALE_VERSION"
+} > "$ROOT/usr/lib/extension-release.d/extension-release.tailscale"
 
 # ── Build SquashFS (gzip — kernel has no SQUASHFS_ZSTD on ZimaOS) ────────
-OUT="$SCRIPT_DIR/tailscale.raw"
+OUT="${OUT:-$SCRIPT_DIR/tailscale.raw}"
 rm -f "$OUT"
 echo "▶ Packing $OUT"
 mksquashfs "$ROOT" "$OUT" \
