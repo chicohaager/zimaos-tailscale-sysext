@@ -29,7 +29,10 @@ StartLimitIntervalSec=0
 EnvironmentFile=-/etc/default/tailscaled
 Environment=PORT=41641
 Environment=FLAGS=
-ExecStartPre=/bin/mkdir -p /DATA/AppData/tailscale
+# /DATA/AppData is writable by everyone on ZimaOS 1.8 (0777, no sticky bit): the guard sets the
+# sticky bit, creates the folder (0700) when missing and refuses one that is not root's or a
+# symlink, before tailscaled reads the node's identity from it (lintux-modkit appdata-guard.sh).
+ExecStartPre=/bin/sh /usr/libexec/tailscale/appdata-guard.sh /DATA/AppData/tailscale
 ExecStartPre=-/usr/sbin/tailscaled --cleanup
 ExecStart=/usr/sbin/tailscaled --state=/DATA/AppData/tailscale/tailscaled.state --socket=/run/tailscale/tailscaled.sock --port=${PORT} $FLAGS
 ExecStopPost=/usr/sbin/tailscaled --cleanup

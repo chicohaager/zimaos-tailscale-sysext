@@ -80,6 +80,10 @@ install -m 0644 "$SCRIPT_DIR/systemd/tailscaled.service" \
 ln -sf ../tailscaled.service \
   "$ROOT/usr/lib/systemd/system/multi-user.target.wants/tailscaled.service"
 
+# Folder check for the unit (lintux-modkit appdata-guard.sh, copied into sysext/ —
+# tools/test-appdata-guard.sh compares it with lintux-modkit's)
+install -D -m 0644 "$SCRIPT_DIR/sysext/appdata-guard.sh" "$ROOT/usr/libexec/tailscale/appdata-guard.sh"
+
 # Extension-release marker (matches existing ZimaOS sysext convention).
 # SYSEXT_VERSION_ID (os-release(5)) carries the module version from ./VERSION;
 # systemd does not match on it, the lintux-modkit installer reads it from the
