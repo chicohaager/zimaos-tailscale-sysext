@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.0.5 — 2026-10-26
+
+- **Folder check before tailscaled starts:** `/DATA/AppData` is writable by everyone on ZimaOS 1.8
+  (mode 0777 without the sticky bit; the share of `/DATA` is writable over SMB), and tailscaled keeps
+  the node's identity in `/DATA/AppData/tailscale` as root — another user could have replaced the
+  folder with one of their own. The unit now runs lintux-modkit's `appdata-guard.sh` first: it sets the
+  sticky bit on `/DATA/AppData` (then only a folder's owner can rename it), creates the folder 0700 when
+  missing and refuses one that is a symlink, not root's, or writable by others.
+
 ## v1.0.4 — 2026-10-17
 
 Prebuilt release images and a version the host can report.
