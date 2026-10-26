@@ -153,6 +153,8 @@ Build on your workstation, copy the artifacts over. Note that ZimaOS v1.7.0 sets
 ```bash
 ./build.sh                            # latest stable
 TAILSCALE_VERSION=1.96.4 ./build.sh   # pinned
+tools/check-reproducible.sh           # before a release: builds three times (umask 022, 002 and 077) and fails when the bytes differ
+../lintux-modkit/tools/check-release.sh . v<version> tailscale   # after the release: rebuilds the tag, same bytes as the asset
 
 scp tailscale.raw systemd/tailscaled-watchdog.* <user>@zimaos:/tmp/
 
