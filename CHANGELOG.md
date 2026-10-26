@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.0.6 — 2026-10-26
 
 - **Reproducible image:** `build.sh` sets directories and programs to 755 and everything else to 644,
   and sets every mtime to the last commit (`SOURCE_DATE_EPOCH`). Before, directories and
