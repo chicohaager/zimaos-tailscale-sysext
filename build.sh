@@ -9,8 +9,8 @@
 #   TAILSCALE_VERSION=1.96.4 ./build.sh
 #   ARCH=amd64 ./build.sh         # arm64 also supported by Tailscale upstream
 #
-# Pin TAILSCALE_VERSION for a repeatable build. Note: mksquashfs embeds file
-# mtimes and a build timestamp, so the .raw bytes/SHA256 still vary per build.
+# Pin TAILSCALE_VERSION for a repeatable build: with the same version and commit the
+# .raw is the same bytes (modes normalized, mtimes from the last commit).
 
 set -euo pipefail
 
@@ -98,6 +98,16 @@ install -D -m 0644 "$SCRIPT_DIR/sysext/appdata-guard.sh" "$ROOT/usr/libexec/tail
 } > "$ROOT/usr/lib/extension-release.d/extension-release.tailscale"
 
 # ── Build SquashFS (gzip — kernel has no SQUASHFS_ZSTD on ZimaOS) ────────
+# Same commit, same image on any machine and at any time: directories and programs 755,
+# everything else 644 (directories and extension-release otherwise follow the umask: 775/664
+# under umask 002, 700/600 under umask 077, which locks users without root out of /usr), and
+# every mtime set to the last commit (mksquashfs also takes SOURCE_DATE_EPOCH for the
+# filesystem time). tools/check-reproducible.sh builds three times and compares (2026-10-26).
+chmod -R u+rwX,go=rX "$ROOT"
+SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-$(git -C "$SCRIPT_DIR" log -1 --format=%ct 2>/dev/null || echo 0)}"
+export SOURCE_DATE_EPOCH
+find "$ROOT" -exec touch -h -d "@$SOURCE_DATE_EPOCH" {} +
+
 OUT="${OUT:-$SCRIPT_DIR/tailscale.raw}"
 rm -f "$OUT"
 echo "▶ Packing $OUT"
