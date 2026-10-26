@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- **Reproducible image:** `build.sh` sets directories and programs to 755 and everything else to 644,
+  and sets every mtime to the last commit (`SOURCE_DATE_EPOCH`). Before, directories and
+  `extension-release` followed the umask (775/664 under umask 002, 700/600 under umask 077), and every
+  build carried its own time, so one commit gave a new image per build.
+  `tools/check-reproducible.sh` builds three times (umask 022, 002 and 077) and fails when the bytes
+  differ. Built on ZimaOS 1.8.0 too: two builds, same bytes (mksquashfs 4.6.1).
+
 ## v1.0.5 — 2026-10-26
 
 - **Folder check before tailscaled starts:** `/DATA/AppData` is writable by everyone on ZimaOS 1.8
