@@ -19,8 +19,9 @@
 # Der Eigentuemer kann /DATA/AppData umbenennen - die Pruefung verweigerte zu Recht, und jedes Modul blieb stehen.
 # Nur genau /DATA, nur ein echter Ordner; danach wird neu gemessen und wie bisher geprueft.
 #
-# Ein Symlink im Weg (/DATA/AppData auf eine andere Platte) wird gefolgt, wenn er in einem Schritt auf einen
-# vorhandenen Ordner ohne weitere Symlinks zeigt; dann wird dieser echte Weg bis / geprueft (Meldung auf stderr).
+# Ein Symlink im Weg (/DATA/AppData auf eine andere Platte) wird gefolgt, wenn er root (bzw. APPDATA_GUARD_PATH_UID)
+# gehoert - sonst biegt sein Eigentuemer ihn nach der Pruefung um - und in einem Schritt auf einen
+# vorhandenen Ordner ohne weitere Symlinks zeigt (doppelte / und / am Ende zaehlen nicht, . und .. schon); dann wird dieser echte Weg bis / geprueft (Meldung auf stderr).
 # Frueher wurde ein Elternordner als Symlink verweigert ("kein echter Ordner"), und die Vorfahren hinter einem
 # Symlink blieben ungeprueft. Wer im Forum nur den Symlink-Test strich, liess den Ordner des Ziels ungeprueft.
 #
@@ -69,10 +70,14 @@ chain() {
   done
 }
 
-# Ziel des Symlinks <l> als absoluter Weg; nur ein Schritt auf einen vorhandenen Weg ohne weitere Symlinks
+# Ziel des Symlinks <l> als absoluter Weg; nur ein Symlink von root, ein Schritt auf einen vorhandenen Weg ohne
+# weitere Symlinks
 target() {
+  lu=$(stat -c %u "$1") || refuse "$1 nicht lesbar"
+  [ "$lu" = 0 ] || [ "$lu" = "$PTRUST" ] || refuse "$1 ist ein Symlink von uid $lu - gefolgt wird nur einem Symlink von root"
   t=$(readlink "$1") || refuse "$1 nicht lesbar"
   case "$t" in /*) ;; *) t=$(dirname "$1")/$t ;; esac
+  t=$(printf '%s\n' "$t" | sed 's#//*#/#g; s#\(.\)/$#\1#')
   r=$(readlink -e "$t") || refuse "$1 zeigt auf $t, das fehlt"
   [ "$r" = "$t" ] || refuse "$1 zeigt auf $t, dort liegen weitere Symlinks oder . und .. - gefolgt wird nur einem Symlink auf einen echten Weg"
   echo "$r"
