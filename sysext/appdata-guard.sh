@@ -14,11 +14,19 @@
 # Einbau: als ExecStartPre= der Unit, die die Datei liest - ausser die Unit liest eine EnvironmentFile=
 # aus diesem Ordner (die Umgebung gilt auch fuer ExecStartPre): dann eine eigene Guard-Unit davor.
 #
-# Fuer Tests: APPDATA_GUARD_UID (Standard 0) = vertrauenswuerdiger Eigentuemer des Ordners,
+# /DATA, das nicht root gehoert, bekommt root als Eigentuemer (Modus bleibt, Meldung auf stderr mit Rueckweg):
+# auf nas-main gehoerte /DATA dem Login-Benutzer (uid 999, sein Home; gemessen 28.10.2026), auf nas-test und remote-cube root.
+# Der Eigentuemer kann /DATA/AppData umbenennen - die Pruefung verweigerte zu Recht, und jedes Modul blieb stehen.
+# Nur genau /DATA, nur ein echter Ordner; danach wird neu gemessen und wie bisher geprueft.
+#
+# Fuer Tests: APPDATA_GUARD_DATA (Standard /DATA) = der Ordner, der repariert wird; APPDATA_GUARD_CHOWN
+# (Standard chown) = Befehl dafuer; APPDATA_GUARD_UID (Standard 0) = vertrauenswuerdiger Eigentuemer des Ordners,
 # APPDATA_GUARD_PATH_UID (Standard wie APPDATA_GUARD_UID) = der Vorfahren und des Elternordners.
 set -u
 TRUST="${APPDATA_GUARD_UID:-0}"
 PTRUST="${APPDATA_GUARD_PATH_UID:-$TRUST}"
+DATA="${APPDATA_GUARD_DATA:-/DATA}"
+CHOWN="${APPDATA_GUARD_CHOWN:-chown}"
 refuse() { echo "appdata-guard: $*" >&2; exit 1; }
 
 # geschuetzt: weder Gruppe noch andere duerfen schreiben, oder Sticky-Bit gesetzt
@@ -38,6 +46,13 @@ for dir in "$@"; do
   while :; do
     st=$(stat -L -c '%u %a' "$a") || refuse "$a nicht lesbar"
     uid=${st% *} mode=${st#* }
+    if [ "$a" = "$DATA" ] && [ "$uid" != 0 ] && [ "$uid" != "$PTRUST" ] && [ -d "$a" ] && [ ! -L "$a" ]; then
+      gid=$(stat -c %g "$a") || refuse "$a nicht lesbar"
+      $CHOWN 0:0 "$a" || refuse "$a gehoert uid $uid - andere koennen den Weg zu $dir aendern; Eigentuemer root nicht gesetzt"
+      echo "appdata-guard: $a gehoerte uid $uid (konnte den Weg zu $dir aendern) - Eigentuemer auf root gesetzt (zurueck: chown $uid:$gid $a)" >&2
+      st=$(stat -L -c '%u %a' "$a") || refuse "$a nicht lesbar"
+      uid=${st% *} mode=${st#* }
+    fi
     [ "$uid" = 0 ] || [ "$uid" = "$PTRUST" ] || refuse "$a gehoert uid $uid - andere koennen den Weg zu $dir aendern"
     protected "$mode" || refuse "$a (Modus $mode) - andere koennen den Weg zu $dir aendern"
     [ "$a" = / ] && break
