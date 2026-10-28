@@ -19,6 +19,11 @@
 # Der Eigentuemer kann /DATA/AppData umbenennen - die Pruefung verweigerte zu Recht, und jedes Modul blieb stehen.
 # Nur genau /DATA, nur ein echter Ordner; danach wird neu gemessen und wie bisher geprueft.
 #
+# Ein Symlink im Weg (/DATA/AppData auf eine andere Platte) wird gefolgt, wenn er in einem Schritt auf einen
+# vorhandenen Ordner ohne weitere Symlinks zeigt; dann wird dieser echte Weg bis / geprueft (Meldung auf stderr).
+# Frueher wurde ein Elternordner als Symlink verweigert ("kein echter Ordner"), und die Vorfahren hinter einem
+# Symlink blieben ungeprueft. Wer im Forum nur den Symlink-Test strich, liess den Ordner des Ziels ungeprueft.
+#
 # Fuer Tests: APPDATA_GUARD_DATA (Standard /DATA) = der Ordner, der repariert wird; APPDATA_GUARD_CHOWN
 # (Standard chown) = Befehl dafuer; APPDATA_GUARD_UID (Standard 0) = vertrauenswuerdiger Eigentuemer des Ordners,
 # APPDATA_GUARD_PATH_UID (Standard wie APPDATA_GUARD_UID) = der Vorfahren und des Elternordners.
@@ -39,26 +44,58 @@ protected() { # <oktalmodus>
 CREATE=1
 [ "${1:-}" = --no-create ] && { CREATE=0; shift; }
 [ $# -ge 1 ] || refuse "Aufruf: appdata-guard.sh [--no-create] <ordner>..."
+# Vorfahr <a> des Wegs zu $dir: gehoert root (oder PTRUST) und ist geschuetzt; /DATA eines anderen wird repariert
+ancestor() {
+  st=$(stat -L -c '%u %a' "$1") || refuse "$1 nicht lesbar"
+  uid=${st% *} mode=${st#* }
+  if [ "$1" = "$DATA" ] && [ "$uid" != 0 ] && [ "$uid" != "$PTRUST" ] && [ -d "$1" ] && [ ! -L "$1" ]; then
+    gid=$(stat -c %g "$1") || refuse "$1 nicht lesbar"
+    $CHOWN 0:0 "$1" || refuse "$1 gehoert uid $uid - andere koennen den Weg zu $dir aendern; Eigentuemer root nicht gesetzt"
+    echo "appdata-guard: $1 gehoerte uid $uid (konnte den Weg zu $dir aendern) - Eigentuemer auf root gesetzt (zurueck: chown $uid:$gid $1)" >&2
+    st=$(stat -L -c '%u %a' "$1") || refuse "$1 nicht lesbar"
+    uid=${st% *} mode=${st#* }
+  fi
+  [ "$uid" = 0 ] || [ "$uid" = "$PTRUST" ] || refuse "$1 gehoert uid $uid - andere koennen den Weg zu $dir aendern"
+  protected "$mode" || refuse "$1 (Modus $mode) - andere koennen den Weg zu $dir aendern"
+}
+
+# <weg> und alle seine Vorfahren bis / (der Weg enthaelt keine Symlinks)
+chain() {
+  c=$1
+  while :; do
+    ancestor "$c"
+    [ "$c" = / ] && break
+    c=$(dirname "$c")
+  done
+}
+
+# Ziel des Symlinks <l> als absoluter Weg; nur ein Schritt auf einen vorhandenen Weg ohne weitere Symlinks
+target() {
+  t=$(readlink "$1") || refuse "$1 nicht lesbar"
+  case "$t" in /*) ;; *) t=$(dirname "$1")/$t ;; esac
+  r=$(readlink -e "$t") || refuse "$1 zeigt auf $t, das fehlt"
+  [ "$r" = "$t" ] || refuse "$1 zeigt auf $t, dort liegen weitere Symlinks oder . und .. - gefolgt wird nur einem Symlink auf einen echten Weg"
+  echo "$r"
+}
+
 for dir in "$@"; do
   dir=${dir%/}
   parent=$(dirname "$dir")
   a=$(dirname "$parent")
   while :; do
-    st=$(stat -L -c '%u %a' "$a") || refuse "$a nicht lesbar"
-    uid=${st% *} mode=${st#* }
-    if [ "$a" = "$DATA" ] && [ "$uid" != 0 ] && [ "$uid" != "$PTRUST" ] && [ -d "$a" ] && [ ! -L "$a" ]; then
-      gid=$(stat -c %g "$a") || refuse "$a nicht lesbar"
-      $CHOWN 0:0 "$a" || refuse "$a gehoert uid $uid - andere koennen den Weg zu $dir aendern; Eigentuemer root nicht gesetzt"
-      echo "appdata-guard: $a gehoerte uid $uid (konnte den Weg zu $dir aendern) - Eigentuemer auf root gesetzt (zurueck: chown $uid:$gid $a)" >&2
-      st=$(stat -L -c '%u %a' "$a") || refuse "$a nicht lesbar"
-      uid=${st% *} mode=${st#* }
-    fi
-    [ "$uid" = 0 ] || [ "$uid" = "$PTRUST" ] || refuse "$a gehoert uid $uid - andere koennen den Weg zu $dir aendern"
-    protected "$mode" || refuse "$a (Modus $mode) - andere koennen den Weg zu $dir aendern"
+    ancestor "$a"
+    if [ -L "$a" ]; then r=$(target "$a") || exit 1; chain "$r"; fi
     [ "$a" = / ] && break
     a=$(dirname "$a")
   done
-  [ -d "$parent" ] && [ ! -L "$parent" ] || refuse "$parent ist kein echter Ordner"
+  if [ -L "$parent" ]; then
+    r=$(target "$parent") || exit 1
+    chain "$(dirname "$r")"
+    echo "appdata-guard: $parent ist ein Symlink auf $r - geprueft und benutzt wird $r" >&2
+    parent=$r dir=$r/$(basename "$dir")
+  fi
+  [ -e "$parent" ] || refuse "$parent fehlt"
+  [ -d "$parent" ] || refuse "$parent ist kein Ordner"
   st=$(stat -c '%u %a' "$parent") || refuse "$parent nicht lesbar"
   uid=${st% *} mode=${st#* }
   [ "$uid" = 0 ] || [ "$uid" = "$PTRUST" ] || refuse "$parent gehoert uid $uid"

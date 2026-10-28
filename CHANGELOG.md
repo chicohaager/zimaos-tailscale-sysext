@@ -7,6 +7,12 @@
   `/DATA/AppData`, so the folder check refused `/DATA/AppData/tailscale` and tailscaled did not
   start (seen with Cron). The check (lintux-modkit `appdata-guard.sh`) now gives `/DATA` back to
   root and says so with the way back (`chown <uid>:<gid> /DATA`); its mode stays.
+- **A symlinked `/DATA/AppData` is followed instead of refused** (forum thread 9566: tailscaled
+  stayed in `activating (auto-restart)` with `appdata-guard: /DATA/AppData ist kein echter Ordner`).
+  The check (lintux-modkit `f0bd1c4`) follows a symlink on the way one step to a real folder and checks
+  that folder and everything above it up to `/`; a chain of symlinks stays refused. Before, the folder
+  behind a symlinked ancestor was not checked at all. A missing folder now says `fehlt`, a file
+  `ist kein Ordner`. Do not strip the `! -L` test by hand: the folder the link points to then goes unchecked.
 - `tools/test-appdata-guard.sh` compares the copy with `$LINTUX_MODKIT` (default `../lintux-modkit`), as `build.sh`.
 
 ## v1.0.6 — 2026-10-26
