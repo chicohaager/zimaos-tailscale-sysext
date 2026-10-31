@@ -6,7 +6,7 @@
 #   --no-create: ein fehlender Ordner wird verweigert statt angelegt (fuer Skripte, die bewusst nichts
 #   anlegen, solange die Platte mit dem Ordner nicht da ist - sonst legte ein anderer ihn an)
 #
-# Warum: /DATA/AppData ist auf ZimaOS 1.8 0777 ohne Sticky-Bit (gemessen nas-test, 26.10.2026, KB §79.11),
+# Warum: /DATA/AppData ist auf ZimaOS 1.8 0777 ohne Sticky-Bit (gemessen auf dem zweiten Test-NAS, 26.10.2026, KB §79.11),
 # die Freigabe von /DATA ist per SMB beschreibbar - wer dort schreibt, benennt den Ordner eines Moduls um
 # und legt einen eigenen hin (wg-quick-Config mit PostUp, pool.env, die root einliest). Mit Sticky-Bit
 # benennt nur noch der Eigentuemer um; ein Ordner, der nicht root gehoert, wird verweigert.
