@@ -1,5 +1,21 @@
 # Changelog
 
+## v1.0.7 — unreleased
+
+- **`/DATA` of another user no longer stops tailscaled:** on a ZimaOS 1.8 box `/DATA` belonged to
+  the login user (uid 999, also its home) instead of root; that user could rename
+  `/DATA/AppData`, so the folder check refused `/DATA/AppData/tailscale` and tailscaled did not
+  start (seen with Cron). The check (lintux-modkit `appdata-guard.sh`) now gives `/DATA` back to
+  root and says so with the way back (`chown <uid>:<gid> /DATA`); its mode stays.
+- **A symlinked `/DATA/AppData` is followed instead of refused** (forum thread 9566: tailscaled
+  stayed in `activating (auto-restart)` with `appdata-guard: /DATA/AppData ist kein echter Ordner`).
+  The check (lintux-modkit `v0.1.6`) follows a symlink of root on the way one step to a real folder and
+  checks that folder and everything above it up to `/`; a chain of symlinks, `.`/`..` in the target and a
+  symlink of another user stay refused (its owner could point it elsewhere after the check). Before, the folder
+  behind a symlinked ancestor was not checked at all. A missing folder now says `fehlt`, a file
+  `ist kein Ordner`. Do not strip the `! -L` test by hand: the folder the link points to then goes unchecked.
+- `tools/test-appdata-guard.sh` compares the copy with `$LINTUX_MODKIT` (default `../lintux-modkit`), as `build.sh`.
+
 ## v1.0.6 — 2026-10-26
 
 - **Reproducible image:** `build.sh` sets directories and programs to 755 and everything else to 644,
