@@ -9,7 +9,7 @@
   root and says so with the way back (`chown <uid>:<gid> /DATA`); its mode stays.
 - **A symlinked `/DATA/AppData` is followed instead of refused** (forum thread 9566: tailscaled
   stayed in `activating (auto-restart)` with `appdata-guard: /DATA/AppData ist kein echter Ordner`).
-  The check (lintux-modkit `de33df3`) follows a symlink of root on the way one step to a real folder and
+  The check (lintux-modkit `v0.1.6`) follows a symlink of root on the way one step to a real folder and
   checks that folder and everything above it up to `/`; a chain of symlinks, `.`/`..` in the target and a
   symlink of another user stay refused (its owner could point it elsewhere after the check). Before, the folder
   behind a symlinked ancestor was not checked at all. A missing folder now says `fehlt`, a file

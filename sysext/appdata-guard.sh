@@ -15,7 +15,7 @@
 # aus diesem Ordner (die Umgebung gilt auch fuer ExecStartPre): dann eine eigene Guard-Unit davor.
 #
 # /DATA, das nicht root gehoert, bekommt root als Eigentuemer (Modus bleibt, Meldung auf stderr mit Rueckweg):
-# auf nas-main gehoerte /DATA dem Login-Benutzer (uid 999, sein Home; gemessen 28.10.2026), auf nas-test und remote-cube root.
+# auf dem Test-NAS gehoerte /DATA dem Login-Benutzer (uid 999, sein Home; gemessen 28.10.2026), auf zwei anderen Geraeten root.
 # Der Eigentuemer kann /DATA/AppData umbenennen - die Pruefung verweigerte zu Recht, und jedes Modul blieb stehen.
 # Nur genau /DATA, nur ein echter Ordner; danach wird neu gemessen und wie bisher geprueft.
 #
